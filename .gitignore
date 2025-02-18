@@ -133,13 +133,4 @@ dmypy.json
 .pyre/
 
 #visualizations
-unxpass/lightning_logs/
-unxpass/Scripts/lightning_logs/
-unxpass/steffen/
-unxpass/Scripts/trainingscripts/lightning_logs
-unxpass/Scripts/visualizations/
-notebooks/lightning_logs/
-notebooks/gifs/
-*.pdf
-*.gif
-*.png
+notebooks/
