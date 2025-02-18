@@ -136,7 +136,7 @@ dmypy.json
 unxpass/lightning_logs/
 unxpass/Scripts/lightning_logs/
 unxpass/steffen/
-unxpass/Scripts/trainingscripts/lightning_logs
+unxpass/trainingscripts/lightning_logs
 unxpass/Scripts/visualizations/
 notebooks/lightning_logs/
 notebooks/gifs/
