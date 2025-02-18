@@ -140,3 +140,6 @@ Scripts/trainingscripts/lightning_logs
 Scripts/visualizations/
 notebooks/lightning_logs/
 notebooks/gifs/
+*.pdf
+*.gif
+*.png

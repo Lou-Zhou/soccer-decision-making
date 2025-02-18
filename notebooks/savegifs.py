@@ -1,3 +1,4 @@
+#generates and saves gifs
 from pathlib import Path
 from functools import partial
 import pandas as pd
