@@ -1,0 +1,69 @@
+"""
+Bundesliga Models(50):
+#selection: "281c0d5d02f6457b844de0fc89a28691"
+#success_model = "bd5dd1785cdc44f598e9e4280402965d"
+Fail Offensive Model saved as 1bf2ae8a27d24995910fe7d1471221aa
+Fail Defensive Model saved as c0eb7727f23d4ae3afa6de6dc79297f3
+Success Offensive Model saved as 477d05b7a744480cb830820e0074df1c
+Success Defensive Model saved as 1750ac34b21d4f558b2e05c141fb3049
+"""
+"""
+Bundesliga(50) Value Models With Features
+#fail offensive: "5714ad917707487cbed291a5b6dcb6b0"
+#fail defensive: "2eee48a38c33496ab2496952a2c0c5e2"
+#success offensive: "b3570b600903494badadd73dced8ed96"
+#success defensive: "60cd9b596e384724a93659db39834e65"
+"""
+"""
+Statsbomb Models:
+Selection: 'runs:/04d45112c139473590b5049cb3797d0d/model'
+Success: 'runs:/78b7ab86dc864858b8814fe811b8796a/model'
+Success Offensive: 'runs:/ec44b8ef79944b10a0d87d13949a1fd3/model'
+Success Defensive: 'runs:/fc10352d1c4948b4ac556443e4de575a/model'
+Fail Offensive: 'runs:/a7eb2344aa414ef582bbc06dcea6b00e/model'
+Fail Defensive: 'runs:/28946631a0b54fe89dc83ca129815b4f/model'
+"""
+"""
+Bundesliga All:
+Selection: 65c1a68ae78c4faca9a709118bd4df79
+Success: 7d3b32c51cde4a41abb7f4a319705086
+Success Offensive: ef0b2f982c17414cbfc7f56954c203a1
+Success Defensive: f5fbfe8a8a3341219bcea26d67b638b0
+Fail Offensive: bb9bbed04b594a819dae97877ecb6523
+Fail Defensive: 9d792463ff1641af82156a19080f83b2
+
+Fail Offensive Model saved as 91d19846ec5e4386a4e3d4d90be98cbc
+Fail Defensive Model saved as b3c7be985610497ba062dc415d7a0165
+Success Offensive Model saved as 8e1b68bc0e524158ac0093ef3ddc4578
+Success Defensive Model saved as e1926d8124f84527a4d7a77e44022af8
+
+
+30 epochs:
+Fail Defensive Model saved with run_id: e818979952c146cdb8cef34d2443bde8
+Fail Offensive Model saved with run_id: 1c1039be741c4f5c8f47009052e146cc
+"""
+30 epochs all:
+Fail Offensive Model saved as a63dce92cf46494d97748381647477db
+Fail Defensive Model saved as 44f27e86cc6142a598065376fbbde388
+Success Offensive Model saved as 1b4acefc54cd40208f77239061443d00
+Success Defensive Model saved as ef86d7acc2844e7d9936e1dd62541e83
+"""
+Diagonistic Value Models:
+#Fail xg added all: 9f5cff81f859459e82e9ad6e8f3fc7ea/model
+#Fail xg added only: f6fd313ad27a42dc8c072afaf9d30f28
+#Success xg : efe72c92a3dd462b98fc257f7b411f2e
+#Success xg added only: f6ac89f2a7934b9bbbb180908e8e1e54
+#Success super: e002005fec2a4fefb2bf390e4e59e7e6
+"""
+b5a2e03af2724c8a9ed9651f4bad6e12 - trained as success model, picks up player locations
+
+#using scores / concedes instead to test? 
+there seems to be a good amount of failed passes that lead to xg - look at how xg is calculated
+
+#single epoch for value model
+#40 epoch model: 0ba444e761594724b8649ae695174fb1
+
+573ea1c62986420fb300f4eee50feb81 - 40 epochs with added signal, seems to pick up
+#Fail Defensive 10 epoch with added channels: 59e582d607844c31bb20b58578b90688
+#Same but without: 2808674780694efa899191b5bd0f7758
+#TODO: look at pass steffen doesn't like and compare soccermap model and xgboost model side by side for whatever Steffen doesn't like
