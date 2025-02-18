@@ -133,11 +133,11 @@ dmypy.json
 .pyre/
 
 #visualizations
-lightning_logs/
-Scripts/lignting_logs/
-Scripts/steffen/
-Scripts/trainingscripts/lightning_logs
-Scripts/visualizations/
+unxpass/lightning_logs/
+unxpass/Scripts/lignting_logs/
+unxpass/Scripts/steffen/
+unxpass/Scripts/trainingscripts/lightning_logs
+unxpass/Scripts/visualizations/
 notebooks/lightning_logs/
 notebooks/gifs/
 *.pdf
