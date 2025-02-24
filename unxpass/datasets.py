@@ -408,8 +408,8 @@ class SamePassesDataset(PassesDataset):
             assert self._labels is not None, "First, create the dataset."
             return pd.DataFrame(index=self._labels.index)
         df_feats = self._features
-        df_feats[['end_x_a0']] = 52.5
-        df_feats[['end_y_a0']] = 34
+        #df_feats[['end_x_a0']] = 52.5
+        #df_feats[['end_y_a0']] = 34
         return df_feats
 
     @property

@@ -52,7 +52,7 @@ def read_Hawkeye_player_loc(file_path, period, minute, second_range, team,actor,
         player_df['NeedsFlip'] = False
     #convert pos here
     player_df['conv_pos'] = player_df.apply(lambda row: convert_Hawkeye(row['pos'], row['NeedsFlip']), axis=1)
-    player_df['freeze_frame'] = player_df.apply(lambda d: {'teammate':d['teammate'], 'keeper':d['isGK'], 'actor':d['isActor'], 
+    player_df['freeze_frame'] = player_df.apply(lambda d: {'player': d['personId']['uefaId'],'teammate':d['teammate'], 'keeper':d['isGK'], 'actor':d['isActor'], 
     'location':d['conv_pos']}, axis = 1)
     player_df['frameNum'] = player_df['time'].ne(player_df['time'].shift()).cumsum()
     player_df["event_uuid"]  = action_id + "-" + player_df['frameNum'].astype(str)
