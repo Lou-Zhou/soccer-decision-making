@@ -98,7 +98,7 @@ def read_player_loc(file_path, period, minute, second, team,actor, action_id, ma
     if not max_second:
         max_second = second + 1
     #print(player_df['time'])
-    player_df = player_df[(player_df['time'] > second) & (player_df['time'] < max_second)]
+    player_df = player_df[(player_df['time'] >= second) & (player_df['time'] <= max_second)]
     print(action_id)
     print(minute)
     print(second)

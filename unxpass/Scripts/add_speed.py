@@ -1,7 +1,11 @@
+#Adding Speed of players as a feature
+#Future TODO - optimize hawkeye similarly to bundesliga
 from unxpass import load_xml
 import pandas as pd
 import numpy as np
 import json
+import os
+from notebooks import conversions
 from unxpass.databases import SQLiteDatabase
 
 def getFlips(game_id):
@@ -162,30 +166,51 @@ def getSpeedHawkeye(match_id, action_id, tracking, player_to_team, goalkeepers, 
     frame_idx = int(full_id.rsplit("-",1)[1])
     pass_data = sequences[sequences['id'] == real_id].iloc[0]
     timeback = 0.4
-    time = pass_data['BallReceipt']
+    time = pass_data['BallReceipt'] 
     period = pass_data['period']
-    minute = int((time + .04 * int(frame_idx)) / 60 + 1)
-    second = int((time + .04 * int(frame_idx)) % 60)
-    second_range = (second - timeback, second + .01)
+    period_times = {1: 0, 2:45, 3: 90, 4: 105}
+    minute = int(time / 60) + 1 + period_times[period]
+    second = time % 60
+    current_second = (second + (.04 * (int(frame_idx) - 1))) % 60 + .01
+    prev_second = (second + (.04 * (int(frame_idx) - 1)) - timeback) % 60#there is a better solution to this...
+    second_range = [prev_second, current_second] 
     team = pass_data['team_id']
     actor =  pass_data['player_id']
     uefa_map = {}
     file_path_begin = os.listdir(tracking)[0].rsplit("_", 2)[0]
     #goalkeepers = []
-    file_path = f"{tracking}/{file_path_begin}_{str(period)}_{str(minute)}.football.samples.centroids"
+    if minute > 45 and period == 1:#there is a clever solution to this but this works i think
+        added = minute % 45
+        minute = 45
+        file_path = f"{tracking}/{file_path_begin}_{str(period)}_{str(minute)}_{str(added)}.football.samples.centroids"
+    if minute > 90 and period == 2:
+        added = minute % 90
+        minute = 90
+        file_path = f"{tracking}/{file_path_begin}_{str(period)}_{str(minute)}_{str(added)}.football.samples.centroids"
+    elif minute > 105 and period == 3:
+        added = minute % 105
+        minute = 105
+        file_path = f"{tracking}/{file_path_begin}_{str(period)}_{str(minute)}_{str(added)}.football.samples.centroids"
+    elif minute > 120 and period == 4:
+        added = minute % 120
+        minute = 120
+        file_path = f"{tracking}/{file_path_begin}_{str(period)}_{str(minute)}_{str(added)}.football.samples.centroids"
+    else:
+         file_path = f"{tracking}/{file_path_begin}_{str(period)}_{str(minute)}.football.samples.centroids"
     all_locs = []
     loc1 = conversions.read_Hawkeye_player_loc(file_path, period, minute, second_range, team,actor, real_id, player_to_team, goalkeepers)
     all_locs.append(loc1)
-    if(second - timeback < 0):
+    if(current_second < prev_second):
+        print("Going back...")
         #if the time is negative, we need to get the last frame of the previous minute
         file_path = f"{tracking}/{file_path_begin}_{str(period)}_{str(minute - 1)}.football.samples.centroids"
-        second_range = (59 + second - timeback, 60)
+        second_range = ((prev_second - current_second), 60)
         loc2 = conversions.read_Hawkeye_player_loc(file_path, period, minute - 1, second_range, team,actor, real_id, player_to_team, goalkeepers)
         all_locs.append(loc2)
     addedtracking = pd.concat(all_locs)
     addedtracking['event_uuid'] = [f"{real_id}-b{i}" for i in range(len(addedtracking), 0, -1)]
-    last = clean_dict(addedtracking.loc[0]["freeze_frame"])
-    first = clean_dict(addedtracking.loc[len(addedtracking) - 1]["freeze_frame"])
+    last = clean_dict(addedtracking.iloc[0]["freeze_frame"])
+    first = clean_dict(addedtracking.iloc[len(addedtracking) - 1]["freeze_frame"])
     return getSpeedsHawkeye(first, last, timeback)
 def getAllHawkeyeSpeeds(skeleton, hawkeye_db):
     with open("/home/lz80/rdf/sp161/shared/soccer-decision-making/hawkeye_to_sb.json", 'r') as file:
@@ -195,38 +220,45 @@ def getAllHawkeyeSpeeds(skeleton, hawkeye_db):
     output["speed_frame_360_a0"] = output["speed_frame_360_a0"].astype(object)
     sb_to_hawkeye = {v: k for k, v in hawkeye_to_sb.items()}
     iter = 1
-    for match_id in skeleton.index.get_level_values(0).unique():
-
+    for match_id in skeleton.index.get_level_values(0).unique()[1:]:
         hawkeye_id = sb_to_hawkeye[int(match_id)]
         sequences = pd.read_csv("/home/lz80/un-xPass/unxpass/steffen/sequences_new.csv")
         tracking = f"/home/lz80/rdf/sp161/shared/soccer-decision-making/allHawkeye/{hawkeye_id}/scrubbed.samples.centroids"
-        output["speed_frame_360_a0"] = {}
         id_to_event = hawkeye_db.actions(game_id = match_id)['original_event_id'].to_dict()
         player_to_team, goalkeepers = getGksTM(match_id)
         game_mask = skeleton.index.get_level_values(0) == match_id
         for game_id, action_id in skeleton.index[game_mask]:
+            action_id = 195
             print(f"Processing match {match_id}, action {action_id}, {iter}/{len(skeleton.index.get_level_values(0).unique())}", end = "\r")
+            #print(hawkeyespeed)
+            hawkeyespeed = getSpeedHawkeye(game_id, action_id, tracking, player_to_team, goalkeepers, id_to_event)
             #get player to team mapping
-            output.at[(game_id, action_id), "speed_frame_360_a0"] = [getSpeedHawkeye(game_id, action_id, tracking, player_to_team, goalkeepers, id_to_event)]
+            #print("###")
+            #print(hawkeyespeed)
+            output.at[(game_id, action_id), "speed_frame_360_a0"] = [hawkeyespeed]
         iter += 1
     return output
 #getAllHawkeyeSpeeds(match_id, hawkeye_db)
 
 #RUN BULI
-print("Adding Bundesliga Speeds...")
-skeleton = pd.read_parquet("/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/all_features_fixed/x_endlocation.parquet")
-dbpath = "/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/buli_all.sql"
-feat_path = "/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/all_features_fixed"
-db = SQLiteDatabase(dbpath)
-buli_speed = addAllSpeedBuli(skeleton, db)
-buli_speed.to_parquet(f"{feat_path}/x_speed_frame_360.parquet")
+buli = False
+if buli:
+    print("Adding Bundesliga Speeds...")
+    skeleton = pd.read_parquet("/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/all_features_fixed/x_endlocation.parquet")
+    dbpath = "/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/buli_all.sql"
+    feat_path = "/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/all_features_fixed"
+    db = SQLiteDatabase(dbpath)
+    buli_speed = addAllSpeedBuli(skeleton, db)
+    buli_speed.to_parquet(f"{feat_path}/x_speed_frame_360.parquet")
 
 #RUN HAWKEYE
-print("Adding Hawkeye Speeds...")
-sequences = pd.read_csv("/home/lz80/un-xPass/unxpass/steffen/sequences_new.csv")
-feat_path = "/home/lz80/rdf/sp161/shared/soccer-decision-making/HawkEye_Features_2"
-skeleton = pd.read_parquet(f"{feat_path}/x_endlocation.parquet")
-dbpath = "/home/lz80/rdf/sp161/shared/soccer-decision-making/hawkeye_all.sql"
-hawkeye_db = SQLiteDatabase(dbpath)
-hawkeye_speed = getAllHawkeyeSpeeds(skeleton, hawkeye_db)
-hawkeye_speed.to_parquet(f"{feat_path}/x_speed_frame_360.parquet")
+hawkeye = True
+if hawkeye:
+    print("Adding Hawkeye Speeds...")
+    sequences = pd.read_csv("/home/lz80/un-xPass/unxpass/steffen/sequences_new.csv")
+    feat_path = "/home/lz80/rdf/sp161/shared/soccer-decision-making/HawkEye_Features_2"
+    skeleton = pd.read_parquet(f"{feat_path}/x_endlocation.parquet")
+    dbpath = "/home/lz80/rdf/sp161/shared/soccer-decision-making/hawkeye_all.sql"
+    hawkeye_db = SQLiteDatabase(dbpath)
+    hawkeye_speed = getAllHawkeyeSpeeds(skeleton, hawkeye_db)
+    hawkeye_speed.to_parquet(f"{feat_path}/x_speed_frame_360.parquet")

@@ -24,6 +24,7 @@ def read_Hawkeye_player_loc(file_path, period, minute, second_range, team,actor,
     """
     Read hawkeye player locations to statsbomb
     """
+    print(second_range)
     player_df_all = pd.read_json(file_path, lines = True, orient = 'columns')
     player_dict = player_df_all['samples'].loc[0]['people']
     player_df = pd.DataFrame(player_dict)#['centroid'].loc[0][0]
@@ -34,18 +35,29 @@ def read_Hawkeye_player_loc(file_path, period, minute, second_range, team,actor,
         max_second = second + 1
     else:
         max_second = second_range[1]
-    player_df = player_df[(player_df['time'] > second) & (player_df['time'] < max_second)]
-    player_df['period'] = period
+    if second > max_second:
+        second = 0
+    player_df = player_df[(player_df['time'] >= second) & (player_df['time'] <= max_second)]
+    
+    print(file_path)
     player_df['minute'] = minute
     player_df['pos'] = player_df.apply(lambda d: d['centroid'][0]['pos'], axis = 1)
+    player_df['pos_name'] = player_df.apply(lambda d: d['role']['name'], axis = 1)
+    player_df = player_df[(player_df['pos_name'] == "Goalkeeper") | (player_df['pos_name'] == "Outfielder")]
     sequences = pd.read_csv("/home/lz80/un-xPass/unxpass/steffen/sequences_new.csv")
     uefa_map = dict(zip(sequences['uefa_player_id'], sequences['player_id']))
     player_df['statsbombid'] = player_df.apply(lambda d: d['personId']['uefaId'], axis = 1).astype(int).map(uefa_map)
-    player_df = player_df.dropna()
-    player_df['team'] = player_df['statsbombid'].astype(int).map(player_to_team)
+    
+    player_df['team'] = player_df['statsbombid'].astype(int).map(player_to_team)#error here - uefa_map might not contain all
+    #need full mapping between uefa and statsbomb i think instead of a temporary one built from sequences
     player_df['teammate'] = np.where(player_df['team'] == team, True, False) 
-    player_df['isGK'] = np.where(player_df['statsbombid'].isin(goalkeepers), True, False)
+    player_df['isGK'] = np.where(player_df['pos_name'] == "Goalkeeper", True, False)
     player_df['isActor'] = np.where(player_df['statsbombid'].astype(int) == actor, True, False)
+    sample_time =  player_df['time'].iloc[0]
+    test = player_df[player_df['time'] == sample_time]
+    
+    #
+    player_df['period'] = period
     if player_df[(player_df['isGK']) & (player_df['teammate'])].reset_index(drop = True).loc[0]['pos'][0] > 0:#gotta be a better way to do this...
         player_df['NeedsFlip'] = True
     else:
@@ -243,7 +255,6 @@ def convert_player_locs(dir_path, output_path):
         player_df['minute'] = minute
         player_df['added_time'] = added
         player_df['half'] = half
-        print(minute, added, half)
     output_dfs.append(player_df)
     all_data = pd.concat(output_dfs).sort_values(by = ['minute', 'time']).reset_index(drop = True)
     json_str = all_data.to_json(orient='records')
