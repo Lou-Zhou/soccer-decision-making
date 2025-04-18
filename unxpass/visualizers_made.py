@@ -4,6 +4,7 @@ import mplsoccer
 from IPython.display import HTML
 from matplotlib.animation import FuncAnimation
 import unxpass.load_xml
+import pandas as pd
 def next_different_value(series):
     next_diff = []
     for i in range(len(series)):
@@ -29,7 +30,7 @@ def get_animation_from_raw(event_id, framerate, events, tracking, custom_frames 
         teammate = tracking_frame[tracking_frame["TeamId"] == team].rename(columns = {"X":"x", "Y":"y"})[["x","y"]]
         teammate["x"] = teammate["x"].str.replace(",", ".").astype(float) + 52.5
         teammate["y"] = teammate["y"].str.replace(",", ".").astype(float) + 34
-        opponent = tracking_frame[tracking_frame["TeamId"] != team].rename(columns = {"X":"x", "Y":"y"})[["x","y"]]
+        opponent = tracking_frame[(tracking_frame["TeamId"] != team) & (tracking_frame["TeamId"] != "BALL")].rename(columns = {"X":"x", "Y":"y"})[["x","y"]]
         opponent["x"] = opponent["x"].str.replace(",", ".").astype(float) + 52.5
         opponent["y"] = opponent["y"].str.replace(",", ".").astype(float) + 34
         actor = tracking_frame[tracking_frame["TeamId"] == "BALL"].rename(columns = {"X":"x", "Y":"y"})[["x","y"]]
@@ -156,7 +157,7 @@ def get_player_locations(event_id, events, tracking):
     teammate = tracking_frame[tracking_frame["TeamId"] == team].rename(columns = {"X":"x", "Y":"y"})[["x","y"]]
     teammate["x"] = teammate["x"].str.replace(",", ".").astype(float) + 52.5
     teammate["y"] = teammate["y"].str.replace(",", ".").astype(float) + 34
-    opponent = tracking_frame[tracking_frame["TeamId"] != team].rename(columns = {"X":"x", "Y":"y"})[["x","y"]]
+    opponent = tracking_frame[(tracking_frame["TeamId"] != team) & (tracking_frame["TeamId"] != "BALL")].rename(columns = {"X":"x", "Y":"y"})[["x","y"]]
     opponent["x"] = opponent["x"].str.replace(",", ".").astype(float) + 52.5
     opponent["y"] = opponent["y"].str.replace(",", ".").astype(float) + 34
     actor = tracking_frame[tracking_frame["PersonId"] == player].rename(columns = {"X":"x", "Y":"y"})[["x","y"]]
@@ -168,8 +169,9 @@ def visualize_pass_from_raw(event_id, events, tracking, ax = None):
     event = events[events["EVENT_ID"] == event_id].reset_index(drop = True).loc[0]
     start_x = float(event["X_EVENT"].replace(",", "."))
     start_y = float(event["Y_EVENT"].replace(",", "."))
-    end_x = float(event["XRec"].replace(",", "."))
-    end_y = float(event["YRec"].replace(",", "."))
+    if pd.notna(event["XRec"]):
+        end_x = float(event["XRec"].replace(",", "."))
+        end_y = float(event["YRec"].replace(",", "."))
     teammate, opponent, actor = get_player_locations(event_id, events, tracking)
     """
     Visualizes a pass on a football pitch with a custom coordinate system.
@@ -183,8 +185,9 @@ def visualize_pass_from_raw(event_id, events, tracking, ax = None):
     # Create a pitch with a custom origin (0, 0) at the center circle
     start_x = start_x + 52.5
     start_y = (start_y + 34)
-    end_x =  (end_x + 52.5)
-    end_y = (end_y + 34)
+    if pd.notna(event["XRec"]):
+        end_x =  (end_x + 52.5)
+        end_y = (end_y + 34)
     pitch = mplsoccer.pitch.Pitch(pitch_type='custom', 
                   half=False,         # Show only half the pitch (positive quadrant)
                   pitch_length=105,   # Length of the pitch (in meters)
@@ -199,8 +202,8 @@ def visualize_pass_from_raw(event_id, events, tracking, ax = None):
         pitch.draw(ax=ax)
     
     # Draw a pass arrow from start to end
-    pitch.arrows(start_x, start_y, end_x, end_y, width=1, headwidth=5, color='gray', ax=ax)
-    
+    if pd.notna(event["XRec"]):
+        pitch.arrows(start_x, start_y, end_x, end_y, width=1, headwidth=5, color='gray', ax=ax)
     # Scatter the start and end points for clarity
     pitch.scatter(opponent.x, opponent.y, c="r", s=30, ax=ax, marker = "x")
     pitch.scatter(teammate.x, teammate.y, c="b", s=30, ax=ax, marker = "o")
@@ -216,7 +219,6 @@ def visualize_pass_from_raw(event_id, events, tracking, ax = None):
 from unxpass.visualization import plot_action, plot_action_og
 def plot_test_action_from_db(id, db_actions, ax = None):
     a = db_actions[db_actions["original_event_id"] == str(id) + ".0"].index
-    print(a)
     plot_action(db_actions.loc[a[0]], title = f"Transformed Coords, id: {id}", ax = ax)
 
 def animate_actions(db, game_id, action_ids, surfaces=None, interval=500, show = True):

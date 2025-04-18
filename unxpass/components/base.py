@@ -331,8 +331,30 @@ class UnxPassPytorchComponent(UnxpassComponent):
         return pd.Series(all_preds, index=data.features.index)
 
     def predict_surface(
-        self, dataset, db, model_name = None, game_id=None, batch_size=1, num_workers=0, pin_memory=False, **predict_cfg
+        self, dataset, db = None, model_name = None, game_id=None, batch_size=1, num_workers=0, pin_memory=False, **predict_cfg
     ) -> Dict:
+        if db is None:
+            # Load dataset
+            data = self.initialize_dataset(dataset, model_name = model_name)
+            actions = data.features.reset_index()
+            if game_id is not None:
+                actions = actions[actions.game_id == game_id]
+                data = Subset(data, actions.index.values)
+            dataloader = DataLoader(
+                data,
+                shuffle=False,
+                batch_size=batch_size,
+                num_workers=num_workers,
+                pin_memory=pin_memory,
+            )
+
+            predictor = pl.Trainer(**predict_cfg.get("trainer", {}))
+            predictions = torch.cat(predictor.predict(self.model, dataloaders=dataloader))
+
+            output = defaultdict(dict)
+            for i, action in actions.iterrows():
+                output[action["match_id"]][action["index"]] = predictions[i][0].detach().numpy()
+            return dict(output)
         # Load dataset
         #print(f"Calling dataset with: {dataset}")
         data = self.initialize_dataset(dataset, model_name = model_name)

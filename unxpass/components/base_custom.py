@@ -340,7 +340,7 @@ class UnxPassPytorchComponent(UnxpassComponent):
         return pd.Series(all_preds, index=data.features.index)
 
     def predict_surface(
-        self, dataset, game_id=None, batch_size=1, num_workers=0, pin_memory=False, **predict_cfg
+        self, dataset, db = None, game_id=None, batch_size=1, num_workers=0, pin_memory=False, **predict_cfg
     ) -> Dict:
         # Load dataset
         data = self.initialize_dataset(dataset)

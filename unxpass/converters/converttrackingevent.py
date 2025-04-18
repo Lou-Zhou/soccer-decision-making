@@ -203,8 +203,8 @@ def convert_event_and_tracking(filename, players_p, tracking, together_csv, even
     tracking_together["goalkeeper"] = np.where(tracking_together["Player_Position"] == "TW", True, False)
     tracking_together["teammate"] = np.where(tracking_together["TeamId"] == tracking_together["CUID1"], True, False)
     tracking_together["actor"] = np.where(tracking_together["PersonId"] == tracking_together["PUID1"], True, False)
-    tracking_together["X_translated"] = 120 - (1.09361 * tracking_together["X"].astype(float) + 60)
-    tracking_together["Y_translated"] = 80 - (-1.09361 * tracking_together["Y"].astype(float) + 40)#???
+    tracking_together["X_translated"] = 120 - (1.09361 * tracking_together["X"].astype(float) + 60)#m to yrds - better to use 120/105?
+    tracking_together["Y_translated"] = 80 - (-1.09361 * tracking_together["Y"].astype(float) + 40)#and 80/65?
     tracking_together["X_translated"] = np.where(tracking_together["NeedsFlip"], 120 - tracking_together["X_translated"], tracking_together["X_translated"])
     # Function to convert the DataFrame
     def convert_to_frame_based(df):
@@ -389,8 +389,8 @@ def convert_event_and_tracking(filename, players_p, tracking, together_csv, even
     # %%
     ball_locs = tracking[tracking["TeamId"] == "BALL"][["N", "X", "Y"]].rename(columns = {"X":"ball_x", "Y": "ball_y", "N":"Frame_Number"})
     event = pd.merge(event, ball_locs, left_on = "FRAME_NUMBER", right_on = "Frame_Number", how = "left")
-    event["ball_x_translated"] = 120 - (1.09361 * event["ball_x"].astype(float) + 60)
-    event["ball_y_translated"] =80 - (-1.09361 * event["ball_y"].astype(float) + 40)
+    event["ball_x_translated"] = 120 - (1.09361 * event["ball_x"].astype(float) + 60)#using 120/105 instead?
+    event["ball_y_translated"] =80 - (-1.09361 * event["ball_y"].astype(float) + 40)#using 80/65 instead?
     event["ball_x_translated"] = np.where(event["NeedsFlip"] & event["ball_x_translated"].notna(), 120 - event["ball_x_translated"], event["ball_x_translated"])
     event["location"] = list(event[["ball_x_translated", "ball_y_translated"]].astype(float).values)
     event['location'] = event['location'].apply(lambda x: None if any(pd.isna(i) for i in x) else x)

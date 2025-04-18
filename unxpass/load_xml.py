@@ -2,7 +2,7 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 #Functions loading buli data to df
 def load_tracking(path):
-    tree = ET.parse(path)  # Replace with your XML file path
+    tree = ET.parse(path) 
     root = tree.getroot()
 
     data = []
@@ -22,15 +22,16 @@ def load_tracking(path):
                     'T': elem.attrib.get('T'),
                     'X': elem.attrib.get('X'),
                     'Y': elem.attrib.get('Y'),
-                    'D': elem.attrib.get('D'),
-                    'S': elem.attrib.get('S'),
-                    'A': elem.attrib.get('A'),
-                    'M': elem.attrib.get('M')
+                    #'D': elem.attrib.get('D'),
+                    #'S': elem.attrib.get('S'),
+                    #'A': elem.attrib.get('A'),
+                    #'M': elem.attrib.get('M')
             }
             data.append(entry)
 
     df = pd.DataFrame(data)
     return df
+    
 
 def load_players(path, to_dict):
     tree = ET.parse(path)  # Replace with your XML file path

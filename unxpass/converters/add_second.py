@@ -21,7 +21,7 @@ for index, row in sequences.iterrows():
         continue
     minutes = int(row['BallReceipt'] // 60) + 1
     seconds = row['BallReceipt'] % 60
-    time_dict[row['id']] = [minutes, seconds]
+    time_dict[row['id']] = [minutes, seconds]#gets time of event without period adjustment
 for game in dirfiles:
     home_team = game.split('_')[1]
     away_team = game.split('_')[2]
@@ -58,7 +58,7 @@ def get_ball_pos(event_df, idx, raw_df):
     
     times = time_dict[action_id]
     #minute = int(time_split[-2]) + period_adjustment[period] + 1
-    minute = times[0] + period_adjustment[period]
+    minute = times[0] + period_adjustment[period]#I think I do this adjustment here
     first_time = raw_df['time'].reset_index(drop = True).loc[0]
     #print(action_id, first_time)
     
@@ -158,7 +158,7 @@ def convert_to_360(df, idx):
     print(f"og_time: {time}")
     minute = times[0]
     second = times[1]
-    minute = minute + period_adjustment[period]
+    minute = minute + period_adjustment[period]#ok... i make this adjustment here
     #minute = int(time_split[-2]) + 1
     #second = float(time_split[-1])
     #print(minute)

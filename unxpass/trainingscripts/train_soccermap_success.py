@@ -9,16 +9,17 @@ from xgboost import XGBClassifier, XGBRanker
 from unxpass.databases import SQLiteDatabase
 from unxpass.datasets import PassesDataset
 from unxpass.components import pass_success
+from unxpass.components.withSpeeds import pass_success_speeds
 from unxpass.components.utils import log_model, load_model
 from unxpass.visualization import plot_action
 STORES_FP = Path("../stores")
 db_path = "/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/buli_all.sql"
 db = SQLiteDatabase(db_path)
-custom_path = "/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/feature_testing"
+custom_path = "/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/all_features_outliers"
 dataset_train = partial(PassesDataset, path=custom_path)
 
-pass_success_model = pass_success.SoccerMapComponent(model = pass_success.PytorchSoccerMapModel())
-pass_success_model.train(dataset_train, trainer = {"accelerator": "cpu", "devices":1, "max_epochs": 50}, model_name = "val")
+pass_success_model = pass_success_speeds.SoccerMapComponent(model = pass_success_speeds.PytorchSoccerMapModel())
+pass_success_model.train(dataset_train, trainer = {"accelerator": "cpu", "devices":1, "max_epochs": 10}, model_name = "val")
 #can test with 
 #dataset_train = partial(PassesDataset, DATA_DIR / "datasets" / "euro2020" / "test")
 #pass_success_model.test(dataset_test)

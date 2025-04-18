@@ -234,7 +234,7 @@ class ToSoccerMapTensor:
             sample["end_x_a0"],
             sample["end_y_a0"],
         )
-        speed_x, speed_y = sample["speedx_a02"], sample["speedy_a02"]
+        speed_x, speed_y = 0,0
         frame = pd.DataFrame.from_records(sample["freeze_frame_360_a0"])
 
         # Location of the player that passes the ball

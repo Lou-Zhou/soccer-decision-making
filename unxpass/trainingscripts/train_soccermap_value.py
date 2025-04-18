@@ -14,23 +14,22 @@ warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
 from unxpass.databases import SQLiteDatabase
 from unxpass.datasets import PassesDataset, CompletedPassesDataset, FailedPassesDataset
 from unxpass.components import pass_value, pass_value_custom
+from unxpass.components.withSpeeds import pass_value_speeds, pass_value_speeds_testing
 pd.options.mode.chained_assignment = None
 
 DATA_DIR = Path("../stores/")
-custom_path = "/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/all_features"
-fail_path = "/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/all_features_fail"
-success_path = "/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/all_features_success"
-dbpath = "/home/lz80/rdf/sp161/shared/soccer-decision-making/buli_all.sql"
+custom_path = "/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/all_features_outliers"
+fail_path = "/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/all_features_outliers_fail"
+success_path = "/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/all_features_outliers_success"
 
-db = SQLiteDatabase(dbpath)
 dataset_success = partial(PassesDataset, path = success_path)
 dataset_fail = partial(PassesDataset, path = fail_path)
 dataset_total = partial(PassesDataset, path = custom_path)#628 vs 2747
 STORES_FP = Path("../stores")
 
-value_fail_offensive = pass_value_custom.SoccerMapComponent(model = pass_value_custom.PytorchSoccerMapModel(), offensive = True)
+value_fail_offensive = pass_value_speeds.SoccerMapComponent(model = pass_value_speeds.PytorchSoccerMapModel(), offensive = True)
 print("training...")
-value_fail_offensive.train(dataset_fail, trainer = {"accelerator": "cpu", "devices":1, "max_epochs": 50}, model_name = 'val')
+value_fail_offensive.train(dataset_fail, trainer = {"accelerator": "cpu", "devices":1, "max_epochs": 10}, model_name = 'val')
 mlflow.set_experiment("pass_value/soccermap")
 with mlflow.start_run() as run:
     # Log the model
@@ -42,9 +41,9 @@ with mlflow.start_run() as run:
     print(f"Fail Offensive Model saved with run_id: {run_id}")
 
 #Defensive Fail
-value_fail_defensive = pass_value_custom.SoccerMapComponent(model = pass_value_custom.PytorchSoccerMapModel(), offensive = False)
+value_fail_defensive = pass_value_speeds.SoccerMapComponent(model = pass_value_speeds.PytorchSoccerMapModel(), offensive = False)
 
-value_fail_defensive.train(dataset_fail, model_name = 'val', trainer = {"accelerator": "cpu", "devices":1, "max_epochs": 50})
+value_fail_defensive.train(dataset_fail, model_name = 'val', trainer = {"accelerator": "cpu", "devices":1, "max_epochs": 10})
 mlflow.set_experiment("pass_value/soccermap")
 with mlflow.start_run() as run:
 #     Log the model
@@ -55,9 +54,9 @@ with mlflow.start_run() as run:
     fail_def = run_id
     print(f"Fail Defensive Model saved with run_id: {run_id}")
 # Offensive Success
-value_success_offensive = pass_value_custom.SoccerMapComponent(model = pass_value_custom.PytorchSoccerMapModel(), offensive = True)
+value_success_offensive = pass_value_speeds.SoccerMapComponent(model = pass_value_speeds.PytorchSoccerMapModel(), offensive = True)
 
-value_success_offensive.train(dataset_success,model_name = 'val', trainer = {"accelerator": "cpu", "devices":1, "max_epochs": 30})
+value_success_offensive.train(dataset_success,model_name = 'val', trainer = {"accelerator": "cpu", "devices":1, "max_epochs": 10})
 mlflow.set_experiment("pass_value/soccermap")
 with mlflow.start_run() as run:
     # Log the model
@@ -68,9 +67,9 @@ with mlflow.start_run() as run:
     success_off = run_id
     print(f"Success Offensive Model saved with run_id: {run_id}")
 # Defensive Success
-value_success_defensive = pass_value_custom.SoccerMapComponent(model = pass_value_custom.PytorchSoccerMapModel(), offensive = False)
+value_success_defensive = pass_value_speeds.SoccerMapComponent(model = pass_value_speeds.PytorchSoccerMapModel(), offensive = False)
 
-value_success_defensive.train(dataset_success, model_name = 'val', trainer = {"accelerator": "cpu", "devices":1, "max_epochs": 30})
+value_success_defensive.train(dataset_success, model_name = 'val', trainer = {"accelerator": "cpu", "devices":1, "max_epochs": 10})
 mlflow.set_experiment("pass_value/soccermap")
 with mlflow.start_run() as run:
     # Log the model

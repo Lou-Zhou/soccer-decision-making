@@ -63,6 +63,27 @@ there seems to be a good amount of failed passes that lead to xg - look at how x
 #single epoch for value model
 #40 epoch model: 0ba444e761594724b8649ae695174fb1
 
+# with speeds
+First Selection Model: ce9da14c0e88476aaab3cac209b7659d
+First Success Model: 3ee1e4c342fb490cb1b0f6bfc1f81908
+
+Selection Model True: 26c0aa14ce1e45ec98c040403d498207
+Success Model True: ad34b583d59443e298e38d7ed47acf85
+
+Selection Model Without Outlier: 739d103329bf4d399fbb8d311859382a
+Success Model Without Outlier: d44cfacd884a4ede8f36eddbba6decce
+## 10 Epoch Value Models
+Fail Offensive Model saved as c4b97f73f6234bd098b3d79e64387826
+Fail Defensive Model saved as 93e77730344e4e6395c50f99150b5df9
+Success Offensive Model saved as 256c36f30f904ad9965313100998b9f9
+Success Defensive Model saved as e0e2780f767b422dbed0d6093c2fef90(30 Epoch)
+
+## 50 Epoch Value Models
+Fail Defensive Model saved with run_id: f73621e21a064dd4bcb199efce9b4d26
+Success Offensive: 4e97c61c9b6749719c2bdf3d05292a07
+Fail Offensive: 8d3584119cd746469e99368e04e19b03
+###
+
 573ea1c62986420fb300f4eee50feb81 - 40 epochs with added signal, seems to pick up
 #Fail Defensive 10 epoch with added channels: 59e582d607844c31bb20b58578b90688
 #Same but without: 2808674780694efa899191b5bd0f7758

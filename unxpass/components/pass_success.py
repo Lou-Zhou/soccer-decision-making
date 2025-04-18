@@ -18,7 +18,7 @@ from sklearn.metrics import (
 )
 from xgboost import XGBClassifier
 
-from .base import (
+from .base import (#custom for original surface generator
     UnxpassComponent,
     UnxPassPytorchComponent,
     UnxPassSkLearnComponent,

@@ -1,124 +1,144 @@
-#Script which animates the model outputs from within the 1 second timeframe
 from pathlib import Path
 from functools import partial
 import pandas as pd
 import matplotlib.pyplot as plt
-pd.options.mode.chained_assignment = None
-
 import numpy as np
 import mlflow
 from scipy.ndimage import zoom
-
 import warnings
-warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
 from unxpass.databases import SQLiteDatabase
 from unxpass.datasets import PassesDataset, CompletedPassesDataset, FailedPassesDataset
 from unxpass.components import pass_selection, pass_value, pass_success, pass_value_custom
+from unxpass.components.withSpeeds import pass_value_speeds
 from unxpass.components.utils import load_model
-from unxpass.visualization import plot_action_og
+from unxpass.visualization import plot_action
+from unxpass.converters import playVisualizers
 from unxpass.ratings_custom import LocationPredictions
-STORES_FP = Path("../stores")
-
-#db = SQLiteDatabase(STORES_FP / "womens_1_test_time.sql")
-#success_model = "7be487b7b3c4438ca1cb2404a9e413cb"
-model_pass_value = pass_value_custom.SoccerMapComponent(
-    model=mlflow.pytorch.load_model(
-        'runs:/ec44b8ef79944b10a0d87d13949a1fd3/model', map_location='cpu'
-        #'runs:/788ec5a232af46e59ac984d50ecfc1d5/model', map_location='cpu'
-    )
-)
-model_pass_selection = pass_selection.SoccerMapComponent(
-    model=mlflow.pytorch.load_model(
-        'runs:/04d45112c139473590b5049cb3797d0d/model', map_location='cpu'
-        #'runs:/788ec5a232af46e59ac984d50ecfc1d5/model', map_location='cpu'
-    )
-)
-model_pass_success = pass_success.SoccerMapComponent(
-    model=mlflow.pytorch.load_model(
-        'runs:/78b7ab86dc864858b8814fe811b8796a/model', map_location='cpu'
-        #'runs:/788ec5a232af46e59ac984d50ecfc1d5/model', map_location='cpu'
-    )
-)
-#selection: runs:/04d45112c139473590b5049cb3797d0d/model
-#value: runs:/ec44b8ef79944b10a0d87d13949a1fd3/model
-#success: runs:/78b7ab86dc864858b8814fe811b8796a/model
-#selection: runs:/f8932cf358c34aba8621993ea5b29dfe/model real one!
-path = "/home/lz80/rdf/sp161/shared/soccer-decision-making/hawkeye_all.sql"
-db = SQLiteDatabase(path)
-custom_path = "/home/lz80/rdf/sp161/shared/soccer-decision-making/HawkEye_Features"
-dataset_test = partial(PassesDataset, path=custom_path)
-#dataset_1 = partial(PassesDataset, path=STORES_FP / "custom" / "womens_data_1")
+from matplotlib.backends.backend_pdf import PdfPages
+import mplsoccer
+def visualize_coords_from_tracking(freeze_frame, start, speed, action_tuple, title = None, surfaces = None, surface_kwargs = None, ax = None, log = False):
+    ff_action = freeze_frame.loc[action_tuple, 'freeze_frame_360_a0']
+    teammate_x = [player['x'] for player in ff_action if player['teammate']]
+    teammate_y = [player['y'] for player in ff_action if player['teammate']]
+    opponent_x = [player['x'] for player in ff_action if not player['teammate']]
+    opponent_y = [player['y'] for player in ff_action if not player['teammate']]
+    x_velo = [player['x_velo'] for player in ff_action]
+    y_velo = [player['y_velo'] for player in ff_action]
+    ball_x = start.loc[action_tuple, 'start_x_a0']
+    ball_y = start.loc[action_tuple, 'start_y_a0']
+    pitch = mplsoccer.pitch.Pitch(pitch_type='custom', 
+                  half=False,         # Show only half the pitch (positive quadrant)
+                  pitch_length=105,   # Length of the pitch (in meters)
+                  pitch_width=68,     # Width of the pitch (in meters)
+                  goal_type='box',
+                  axis=True)          # Show axis for coordinates
+    
+    # Create a figure
+    if ax is None:
+        fig, ax = pitch.draw(figsize=(10, 7))
+    else:
+        pitch.draw(ax=ax)
+    for player in ff_action:
+        start_x, start_y = player['x'], player['y']
+        end_x, end_y = player['x'] + player['x_velo'], player['y'] + player['y_velo']
+        pitch.arrows(start_x, start_y, end_x, end_y, width=1, headwidth=5, color='gray', ax=ax)
+    # Scatter the start and end points for clarity
+    pitch.scatter(opponent_x, opponent_y, c="r", s=30, ax=ax, marker = "x")
+    pitch.scatter(teammate_x, teammate_y, c="b", s=30, ax=ax, marker = "o")
+    pitch.scatter([ball_x], [ball_y], c="w", ec = "k", s=20, ax=ax)
+    if surfaces is not None:
+        surface = surfaces[action_tuple[0]][action_tuple[1]]
+        if log:
+            ax.imshow(np.log(surface), extent=[0.0, 105.0, 0.0, 68.0], origin="lower", **surface_kwargs)
+        else:
+            ax.imshow(surface, extent=[0.0, 105.0, 0.0, 68.0], origin="lower", **surface_kwargs)
+    
+    # Set labels
+    ax.set_title(title)
+    
+    # Show the plot
+    plt.show()
+import unxpass.converters.playVisualizers
+from unxpass.components.withSpeeds import pass_selection_speeds
 
 import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-import pandas as pd
-from mplsoccer import Pitch
+from matplotlib.animation import FuncAnimation
 
-def animate_actions(db, game_id, action_ids, surfaces=None, interval=500):
+def animate_tracking_sequence(freeze_frame_df, start_df, speed_df, action_tuples, 
+                               surfaces=None, surface_kwargs=None, log=False, interval=250, title=None):
     """
-    Animate a list of actions from a game with optional surface overlays.
-
-    Parameters
-    ----------
-    db : Database instance
-        Database to fetch actions.
-    game_id : int
-        The game ID for which to fetch actions.
-    action_ids : list of int
-        List of action IDs to animate.
-    surfaces : list of np.array, optional
-        List of surfaces (heatmaps, overlays, etc.) corresponding to each action.
-    interval : int, optional
-        Time interval between frames (in milliseconds).
-    """
+    Creates an animation of player coordinates and surfaces for a sequence of actions.
     
-    # Set up the figure and axis
-    fig, ax = plt.subplots(figsize=(12, 8))
-    p = Pitch(pitch_type="custom", pitch_length=105, pitch_width=68)
-    p.draw(ax=ax)  # Draw the pitch initially
+    Parameters:
+        freeze_frame_df: DataFrame containing freeze frame data
+        start_df: DataFrame with starting ball positions
+        speed_df: (unused but kept for compatibility)
+        action_tuples: List of (index0, index1) tuples identifying each frame to plot
+        surfaces: Optional 2D list of surface arrays
+        surface_kwargs: Arguments to pass to imshow (e.g., cmap, vmin/vmax)
+        log: Whether to apply np.log to surface
+        interval: Time in ms between frames
+        title_prefix: Prefix for subplot title
+    """
+    fig, ax = plt.subplots(figsize=(10, 7))
+    pitch = mplsoccer.pitch.Pitch(pitch_type='custom',
+                                  half=False,
+                                  pitch_length=105,
+                                  pitch_width=68,
+                                  goal_type='box',
+                                  axis=True)
+    pitch.draw(ax=ax)
 
-    def update(frame_idx):
-        # Clear the axis for the next frame and re-draw the pitch
+    def update(frame):
         ax.clear()
-        p.draw(ax=ax)
-        
-        # Fetch the action for the current frame
-        action_id = action_ids[frame_idx]
-        action = db.actions(game_id=game_id).loc[(game_id,action_id)]
+        action_tuple = action_tuples[frame]
+        visualize_coords_from_tracking(
+            freeze_frame_df,
+            start_df,
+            speed_df,
+            action_tuple,
+            title=f"{title} | {frame}",
+            surfaces=surfaces,
+            surface_kwargs=surface_kwargs,
+            ax=ax,
+            log=log
+        )
 
-        # Determine the surface to plot (if any)
-        surface = surfaces[game_id][action_id] if surfaces is not None else None
-        
-        # Plot the action with optional surface
-        plot_action_og(action, surface=surface, ax=ax,surface_kwargs={"interpolation":"bilinear", "vmin": None, "vmax": None, "cmap": "Greens"})
+    anim = FuncAnimation(fig, update, frames=len(action_tuples), interval=interval, repeat=False)
+    plt.close(fig)
+    return anim
+    
+def getAnimation(index, game_id, sequence, surfaces, freeze_frame, start, speed, log = False, title = None):
+    play_surfaces = {k:v for k,v in surfaces[game_id].items() if k.split("-")[0] == str(index)}
+    action_tuples = [(game_id, key) for key in play_surfaces.keys()]
+    animation = animate_tracking_sequence(freeze_frame, start, speed, action_tuples, surfaces = surfaces, surface_kwargs = {"interpolation":"bilinear", "vmin": None, "vmax": None, "cmap": "Greens"}, log = log, title = title)
+    return animation
+    from pathlib import Path
 
-    # Create the animation
-    ani = animation.FuncAnimation(
-        fig, update, frames=len(action_ids), interval=interval, repeat=False
+def main(num_to_generate = 5, custom_game = None):
+    custom_path = "/home/lz80/rdf/sp161/shared/soccer-decision-making/Hawkeye_Features/Hawkeye_Features_Updated_wSecond"
+    dataset_test = partial(PassesDataset, path=custom_path)
+    model = pass_selection_speeds.SoccerMapComponent(
+        model=mlflow.pytorch.load_model(
+            'runs:/739d103329bf4d399fbb8d311859382a/model', map_location='cpu'
+            #'runs:/788ec5a232af46e59ac984d50ecfc1d5/model', map_location='cpu'
+        )
     )
-
-    # Display the animation
-    plt.show()
-
-    return ani
-
-# Usage example:
-# db = ...  # Your database instance
-# game_id = 12345
-# action_ids = [1, 2, 3, 4]  # List of action IDs
-# surfaces = [np.random.random((68, 105)) for _ in action_ids]  # Example list of surfaces
-# animate_actions(db, game_id, action_ids, surfaces)
-def get_action_ids(uuid, game_id):
-    test = db.actions(game_id = game_id)
-    return test[test['original_event_id'].fillna('').str.contains(uuid)].index.get_level_values('action_id').tolist()[1:]
-game_id = '3835319'
-action_id = '1e97c5d0-024e-419a-a2f4-ec15053d2337'
-			
-#print(db.actions(game_id = game_id))
-print(db.games())
-surfaces = model_pass_selection.predict_surface(dataset_test, db = db, model_name = "sel", game_id = game_id)
-action_ids = get_action_ids(action_id, game_id)
-print(action_ids)
-ani = animate_actions(db, game_id, action_ids, surfaces = surfaces)
-writergif = animation.PillowWriter(fps=15)
-ani.save('selection_test.gif', writer=writergif)
+    sequences = pd.read_csv("/home/lz80/un-xPass/unxpass/steffen/sequence_filtered.csv", delimiter = ";")
+    surfaces = model.predict_surface(dataset_test, model_name = "sel")
+    freeze_frame_df = pd.read_parquet(f"{custom_path}/x_freeze_frame_360.parquet")
+    speed_df = pd.read_parquet(f"{custom_path}/x_speed.parquet")
+    start_df = pd.read_parquet(f"{custom_path}/x_startlocation.parquet")
+    for anim in range(num_to_generate):
+        if custom_game is not None:
+            game_id = custom_game
+        else:
+            game_id = sequences.iloc[anim]["match_id"]
+        game_sequences = sequences[sequences["match_id"] == game_id]
+        idx = game_sequences.iloc[anim]["index"]
+        s_id = game_sequences.iloc[anim]["id"]
+        
+        animation = getAnimation(idx, game_id, sequences, surfaces, freeze_frame_df, start_df, speed_df, log = True, title = f"Selection Probabilities | {game_id} | {s_id}")
+        animation_title = f"/home/lz80/un-xPass/unxpass/Scripts/animations/{game_id}_{idx}_sel.gif"
+        animation.save(animation_title, writer='pillow', fps=1, dpi=200)
+if __name__ == '__main__': main(num_to_generate = 25)  # Change the number of animations to generate as needed
