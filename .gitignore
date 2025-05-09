@@ -145,3 +145,6 @@ notebooks/gifs/
 *.png
 *.txt
 *.csv
+lightning_logs/
+runs/
+multirun/
