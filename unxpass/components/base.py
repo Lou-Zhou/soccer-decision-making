@@ -32,10 +32,9 @@ class UnxpassComponent(ABC):
         self.label = label
         self.transform = transform
 
-    def initialize_dataset(self, dataset: Union[PassesDataset, Callable], model_name = None) -> PassesDataset:
+    def initialize_dataset(self, dataset: Union[PassesDataset, Callable]) -> PassesDataset:
         if callable(dataset):
-            print(model_name)
-            return dataset(xfns=self.features, yfns=self.label, model_name = model_name, transform=self.transform)
+            return dataset(xfns=self.features, yfns=self.label, transform=self.transform)
         return dataset
 
     @abstractmethod
@@ -235,7 +234,6 @@ class UnxPassPytorchComponent(UnxpassComponent):
         mlflow.pytorch.autolog()
 
         # Init lightning trainer
-        print(train_cfg)
         trainer = pl.Trainer(callbacks=callbacks, logger=logger, **train_cfg["trainer"])
 
         # Load data
@@ -243,7 +241,7 @@ class UnxPassPytorchComponent(UnxpassComponent):
             data = self.initialize_dataset(dataset, model_name = model_name)
         else:
             data = self.initialize_dataset(dataset)
-        print(data.features.shape[0])
+        print(data.features)
         nb_train = int(len(data) * 0.8)
         lengths = [nb_train, len(data) - nb_train]
         _data_train, _data_val = random_split(data, lengths)

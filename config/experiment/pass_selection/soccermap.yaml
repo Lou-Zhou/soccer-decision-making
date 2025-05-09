@@ -10,7 +10,7 @@ defaults:
 experiment_name: "pass_selection/soccermap"
 
 model_cfg:
-  _target_: unxpass.components.pass_selection.PytorchSoccerMapModel
+  _target_: unxpass.components.withSpeeds.pass_selection_speeds.PytorchSoccerMapModel
   lr: 1e-4
 
 train_cfg:
@@ -20,5 +20,5 @@ train_cfg:
       min_delta: 1e-5
 
 component:
-  _target_: unxpass.components.pass_selection.SoccerMapComponent
+  _target_: unxpass.components.withSpeeds.pass_selection_speeds.SoccerMapComponent
   model: ${model_cfg}

@@ -302,7 +302,7 @@ class ToSoccerMapTensor:
             np.arctan((y0_goal - coords[:, :, 1]) / (x0_goal - coords[:, :, 0]))
         )
 
-        # CH 8-9: Ball speed - might want to add this too
+        # CH 8-9: Ball speed 
         matrix[7, y0_ball, x0_ball] = speed_x
         matrix[8, y0_ball, x0_ball] = speed_y
         # CH 10: Distance to nearest opponent - need to get location of recipient

@@ -16,12 +16,12 @@ def next_different_value(series):
         next_diff.append(next_value.iloc[0] if not next_value.empty else None)
     return next_diff
 def animationHelper(game_id):
-    trackingpath = f"/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/zipped_tracking/zip_output/{game_id}.xml"
-    eventpath = f"/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/KPI_Merged_all/KPI_MGD_{game_id}.csv"
+    trackingpath = f"/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/raw_data/zipped_tracking/zip_output/{game_id}.xml"
+    eventpath = f"/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/raw_data/KPI_Merged_all/KPI_MGD_{game_id}.csv"
     event = unxpass.load_xml.load_csv_event(eventpath)
     tracking = unxpass.load_xml.load_tracking(trackingpath)
     return event, tracking
-def get_animation_from_raw(event_id, framerate, events, tracking, custom_frames = None, show = True, add_frames = None, frameskip = 1):
+def get_animation_from_raw(event_id, framerate, events, tracking, custom_frames = None, show = True, add_frames = None, frameskip = 1, title = None):
     #events = csv, tracking = xml
     events['NEXT_FRAME'] = next_different_value(events.sort_values(by = "FRAME_NUMBER")["FRAME_NUMBER"])
     def get_player_locations_byframe(frame_num):
@@ -40,6 +40,8 @@ def get_animation_from_raw(event_id, framerate, events, tracking, custom_frames 
 
     # Create the figure and axis for the pitch (without rendering it yet)
     fig, ax = plt.subplots(figsize=(10, 7))
+    if title is not None:
+        fig.suptitle(title)
     pitch = mplsoccer.Pitch(pitch_type='custom', 
                             half=False,  # Show the full pitch
                             pitch_length=105, 
@@ -70,16 +72,14 @@ def get_animation_from_raw(event_id, framerate, events, tracking, custom_frames 
     start = event["FRAME_NUMBER"]
     if start >= end:
         end = int(end) + 70
-        print("adding 70 frames..")
     if add_frames:
         end = int(start) + add_frames
     if custom_frames:
         frame_numbers = custom_frames
     else:
         frame_numbers = range(int(start), int(end), frameskip)  # 13640 is not inclusive, so it goes up to 13639
-    print(frame_numbers)
     anim = FuncAnimation(fig, update, frames=frame_numbers, interval=framerate)  # Adjust the interval for speed (200ms between frames)
-
+    print([min(frame_numbers), max(frame_numbers)])
     # Save the animation as a video file or display it inline
     # To display inline in Jupyter, use:
     if show:
@@ -87,8 +87,8 @@ def get_animation_from_raw(event_id, framerate, events, tracking, custom_frames 
         return HTML(anim.to_jshtml())
     return anim
 
-def get_player_locations_byframe(frame_num):
-    team = events["CUID1"].unique()[0]
+def get_player_locations_byframe(frame_num, event_id, events, tracking):
+    team = events[events['EVENT_ID'] == event_id]["CUID1"].unique()[0]
     tracking_frame = tracking[tracking["N"] == str(frame_num)]
     teammate = tracking_frame[tracking_frame["TeamId"] == team].rename(columns = {"X":"x", "Y":"y"})[["x","y"]]
     teammate["x"] = teammate["x"].str.replace(",", ".").astype(float) + 52.5
@@ -102,7 +102,7 @@ def get_player_locations_byframe(frame_num):
     return teammate, opponent, actor
 
 def visualize_coords_from_tracking(frame_num, events, tracking, ax = None):
-    teammate, opponent, actor = get_player_locations_byframe(frame_num, events, tracking)
+    teammate, opponent, actor = get_player_locations_byframe(frame_num, tracking)
     """
     Visualizes a pass on a football pitch with a custom coordinate system.
     

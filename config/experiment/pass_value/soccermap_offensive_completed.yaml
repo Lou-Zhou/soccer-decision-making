@@ -6,10 +6,10 @@ defaults:
   - override /model_cfg: pytorch
   - override /train_cfg: pytorch_gpu
 
-experiment_name: "pass_value/soccermap_completed"
+experiment_name: "pass_value/soccermap_offensive_completed"
 
 model_cfg:
-  _target_: unxpass.components.pass_value.PytorchSoccerMapModel
+  _target_: unxpass.components.withSpeeds.pass_value_speeds.PytorchSoccerMapModel
   lr: 1e-6
 
 train_cfg:
@@ -19,7 +19,7 @@ train_cfg:
       min_delta: 1e-5
 
 component:
-  _target_: unxpass.components.pass_value.SoccerMapComponent
+  _target_: unxpass.components.withSpeeds.pass_value_speeds.SoccerMapComponent
   model: ${model_cfg}
   offensive: True
   success: True

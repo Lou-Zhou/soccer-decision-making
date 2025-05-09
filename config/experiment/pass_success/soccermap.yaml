@@ -9,7 +9,7 @@ defaults:
 experiment_name: "pass_success/soccermap"
 
 model_cfg:
-  _target_: unxpass.components.pass_success.PytorchSoccerMapModel
+  _target_: unxpass.components.withSpeeds.pass_success_speeds.PytorchSoccerMapModel
   lr: 1e-4
 
 train_cfg:
@@ -19,5 +19,5 @@ train_cfg:
       min_delta: 1e-3
 
 component:
-  _target_: unxpass.components.pass_success.SoccerMapComponent
+  _target_: unxpass.components.withSpeeds.pass_success_speeds.SoccerMapComponent
   model: ${model_cfg}

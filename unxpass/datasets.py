@@ -37,15 +37,11 @@ class PassesDataset(Dataset):
         self,
         xfns: Union[List, Dict[Union[str, Callable], Optional[List]]],
         yfns: List[Union[str, Callable]],
-        model_name = None,
         transform: Optional[Callable] = None,
         path: Optional[os.PathLike[str]] = None,
-        load_cached: bool = True
-        
+        load_cached: bool = True,
     ):
         # Check requested features and labels
-
-        self.model_name = model_name
         self.xfns = self._parse_xfns(xfns)
         self.yfns = self._parse_yfns(yfns)
         self.transform = transform
@@ -60,31 +56,21 @@ class PassesDataset(Dataset):
             try:
                 log.info("Loading dataset from %s", self.store)
                 if len(self.xfns):
-                    feats = pd.concat(
+                    self._features = pd.concat(
                         [
                             pd.read_parquet(self.store / f"x_{xfn.__name__}.parquet")[cols]
                             for xfn, cols in self.xfns.items()
                         ],
                         axis=1,
                     )
-                    if self.model_name == "sel":
-                        feats = feats[['start_x_a0', 'start_y_a0', 'end_x_a0', 'end_y_a0', 'speedx_a02','speedy_a02', 'freeze_frame_360_a0']].dropna()#this is stupid! whatever
-                        feats[[ 'speedx_a02','speedy_a02']] = 0
-                    elif self.model_name == "val":
-                        feats = feats[['start_x_a0', 'start_y_a0', 'end_x_a0', 'end_y_a0','freeze_frame_360_a0']].dropna()
-                    #Selection: [['start_x_a0', 'start_y_a0', 'end_x_a0', 'end_y_a0', 'speedx_a02',
-       #'speedy_a02', 'freeze_frame_360_a0']]
                 if len(self.yfns):
-                    labs = pd.concat(
+                    self._labels = pd.concat(
                         [
                             pd.read_parquet(self.store / f"y_{yfn.__name__}.parquet")
                             for yfn in self.yfns
                         ],
                         axis=1,
-                    ).dropna()#.loc[self._features.index]
-                    index_intersection = feats.index.intersection(labs.index)
-                    self._labels = labs.loc[index_intersection]
-                    self._features = feats.loc[index_intersection]
+                    )
             except FileNotFoundError:
                 log.error(
                     "No complete dataset found at %s. Run 'create' to create it.", self.store
@@ -180,13 +166,9 @@ class PassesDataset(Dataset):
                 df_features_xfn = pd.concat(df_features_xfn)
                 if self.store is not None:
                     assert self.store is not None
-                    #print("Saving features to disk")
-                    #print(xfn.__name__)
                     df_features_xfn.to_parquet(self.store / f"x_{xfn.__name__}.parquet")
                 df_features.append(df_features_xfn)
-            features_l = pd.concat(df_features, axis=1)
-            features_l = features_l.dropna()
-            #this is a stupid way to do this, fix later
+            self._features = pd.concat(df_features, axis=1)
 
         # Compute labels for each pass
         if len(self.yfns):
@@ -208,11 +190,7 @@ class PassesDataset(Dataset):
                 if self.store is not None:
                     df_labels_yfn.to_parquet(self.store / f"y_{yfn.__name__}.parquet")
                 df_labels.append(df_labels_yfn)
-            labels_l = pd.concat(df_labels, axis=1)
-            labels_l = labels_l.dropna()
-            common = features_l.index.intersection(labels_l.index)#band-aid solution look into this some more
-            self._labels = labels_l.loc[common]
-            self._features = features_l.loc[common]
+            self._labels = pd.concat(df_labels, axis=1)
 
     @property
     def features(self):
@@ -338,9 +316,8 @@ class CompletedPassesDataset(PassesDataset):
         xfns: Union[List, Dict[Union[str, Callable], Optional[List]]],
         yfns: List[Union[str, Callable]],
         transform: Optional[Callable] = None,
-        model_name = None
     ):
-        super().__init__(xfns, yfns + ["success"], model_name, transform, path)
+        super().__init__(path, xfns, yfns + ["success"], transform)
 
     @property
     def features(self):
@@ -351,8 +328,8 @@ class CompletedPassesDataset(PassesDataset):
     @property
     def labels(self):
         assert self._labels is not None
-        self._labels = self._labels.loc[:,~self._labels.columns.duplicated()].copy()
         df_labels = self._labels[self._labels.success]
+        df_labels.drop("success", axis=1, inplace=True)
         return df_labels
 
 
@@ -365,11 +342,8 @@ class FailedPassesDataset(PassesDataset):
         xfns: Union[List, Dict[Union[str, Callable], Optional[List]]],
         yfns: List[Union[str, Callable]],
         transform: Optional[Callable] = None,
-        model_name = None
     ):
-        print(xfns)
-        super().__init__(xfns , yfns + ["success"], model_name, transform, path)
-        
+        super().__init__(path, xfns, yfns + ["success"], transform)
 
     @property
     def features(self):
@@ -380,42 +354,6 @@ class FailedPassesDataset(PassesDataset):
     @property
     def labels(self):
         assert self._labels is not None
-        #self._labels.drop("success", axis=1, inplace=True)
-        self._labels = self._labels.loc[:,~self._labels.columns.duplicated()].copy()
         df_labels = self._labels[~self._labels.success]
-        #df_labels.drop("success", axis=1, inplace=True)
-        #df_labels["success"] = False
+        df_labels.drop("success", axis=1, inplace=True)
         return df_labels
-
-class SamePassesDataset(PassesDataset):
-    """A dataset containing only failed passes."""
-
-    def __init__(
-        self,
-        path: os.PathLike[str],
-        xfns: Union[List, Dict[Union[str, Callable], Optional[List]]],
-        yfns: List[Union[str, Callable]],
-        transform: Optional[Callable] = None,
-        model_name = None
-    ):
-        print(xfns)
-        super().__init__(xfns , yfns + ["success"], model_name, transform, path)
-        
-
-    @property
-    def features(self):
-        if self._features is None:
-            assert self._labels is not None, "First, create the dataset."
-            return pd.DataFrame(index=self._labels.index)
-        df_feats = self._features
-        #df_feats[['end_x_a0']] = 52.5
-        #df_feats[['end_y_a0']] = 34
-        return df_feats
-
-    @property
-    def labels(self):
-        if self._labels is None:
-            assert self._features is not None, "First, create the dataset."
-            return pd.DataFrame(index=self._features.index)
-        return self._labels
-    

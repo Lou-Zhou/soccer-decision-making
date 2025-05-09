@@ -1,0 +1,4 @@
+- model_cfg.lr=0.001
+- train_cfg.batch_size=16
+- experiment=pass_success/soccermap
+- hparams_search=soccermap_optuna
