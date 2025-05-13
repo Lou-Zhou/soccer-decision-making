@@ -138,6 +138,7 @@ unxpass/Scripts/lightning_logs/
 unxpass/steffen/
 unxpass/trainingscripts/lightning_logs
 unxpass/Scripts/visualizations/
+notebooks/playViz
 notebooks/lightning_logs/
 notebooks/gifs/
 *.pdf
