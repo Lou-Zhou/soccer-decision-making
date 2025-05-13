@@ -9,7 +9,7 @@ import numpy as np
 def trimSecondIdx(sequences, hawkeye_events, seconds_after = 1):
     allGames = []
     for game in tqdm(hawkeye_events):
-        hawkeyeEvents = pd.read_json(f"/home/lz80/rdf/sp161/shared/soccer-decision-making/womens_euro/events/{game}")[['id', 'timestamp', 'period', 'index']]
+        hawkeyeEvents = pd.read_json(f"../../../../rdf/sp161/shared/soccer-decision-making/womens_euro/events/{game}")[['id', 'timestamp', 'period', 'index']]
         hawkeyeEvents = hawkeyeEvents.sort_values(by = ['period', 'timestamp'])
         hawkeyeEvents['match_id'] = game.split(".")[0]
         m = hawkeyeEvents['timestamp'].ne(hawkeyeEvents['timestamp'].shift())
@@ -31,9 +31,9 @@ def trimSecondIdx(sequences, hawkeye_events, seconds_after = 1):
             excludeIdx.append(index)
     return excludeIdx
 def main():
-    sequences = pd.read_csv("/home/lz80/un-xPass/unxpass/steffen/sequence_filtered.csv", delimiter = ";")
+    sequences = pd.read_csv("../../steffen/sequence_filtered.csv", delimiter = ";")
     #hawkeyeEvents
-    hawkeye_events = os.listdir("/home/lz80/rdf/sp161/shared/soccer-decision-making/womens_euro/events")
+    hawkeye_events = os.listdir("../../../../rdf/sp161/shared/soccer-decision-making/womens_euro/events")
     excludeIdx = trimSecondIdx(sequences, hawkeye_events, seconds_after = 3)
     #print(excludeIdx)
 if __name__ == "__main__": main()

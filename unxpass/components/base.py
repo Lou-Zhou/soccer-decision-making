@@ -171,9 +171,9 @@ class UnxPassXGBoostComponent(UnxpassComponent):
         return pd.Series(y_hat, index=data.features.index)
 
     def predict_surface(
-        self, dataset, game_id, model_name = None, action_id = None, config=None, db=None, x_bins=104, y_bins=68, result=None
+        self, dataset, game_id, action_id = None, config=None, db=None, x_bins=104, y_bins=68, result=None
     ) -> Dict:
-        data = self.initialize_dataset(dataset, model_name = model_name)
+        data = self.initialize_dataset(dataset)
         games = data.features.index.unique(level=0)
         assert game_id in games, "Game ID not found in dataset!"
         sim_features = simulate_features(
@@ -223,7 +223,6 @@ class UnxPassPytorchComponent(UnxpassComponent):
         self,
         dataset,
         optimized_metric=None,
-        model_name = None,
         callbacks=None,
         logger=None,
         batch_size=1,
@@ -237,11 +236,7 @@ class UnxPassPytorchComponent(UnxpassComponent):
         trainer = pl.Trainer(callbacks=callbacks, logger=logger, **train_cfg["trainer"])
 
         # Load data
-        if model_name:
-            data = self.initialize_dataset(dataset, model_name = model_name)
-        else:
-            data = self.initialize_dataset(dataset)
-        print(data.features)
+        data = self.initialize_dataset(dataset)
         nb_train = int(len(data) * 0.8)
         lengths = [nb_train, len(data) - nb_train]
         _data_train, _data_val = random_split(data, lengths)
@@ -305,9 +300,9 @@ class UnxPassPytorchComponent(UnxpassComponent):
 
         # Compute metrics
         return self._get_metrics(all_targets, all_preds)
-    def predict(self, dataset,model_name, batch_size=1, num_workers=0, pin_memory=False) -> pd.Series:
+    def predict(self, dataset,batch_size=1, num_workers=0, pin_memory=False) -> pd.Series:
         # Load dataset
-        data = self.initialize_dataset(dataset, model_name)
+        data = self.initialize_dataset(dataset)
         dataloader = DataLoader(
             data,
             shuffle=False,
@@ -329,11 +324,11 @@ class UnxPassPytorchComponent(UnxpassComponent):
         return pd.Series(all_preds, index=data.features.index)
 
     def predict_surface(
-        self, dataset, db = None, model_name = None, game_id=None, batch_size=1, num_workers=0, pin_memory=False, **predict_cfg
+        self, dataset, db = None,  game_id=None, batch_size=1, num_workers=0, pin_memory=False, **predict_cfg
     ) -> Dict:
         if db is None:
             # Load dataset
-            data = self.initialize_dataset(dataset, model_name = model_name)
+            data = self.initialize_dataset(dataset)
             actions = data.features.reset_index()
             if game_id is not None:
                 actions = actions[actions.game_id == game_id]
@@ -355,7 +350,7 @@ class UnxPassPytorchComponent(UnxpassComponent):
             return dict(output)
         # Load dataset
         #print(f"Calling dataset with: {dataset}")
-        data = self.initialize_dataset(dataset, model_name = model_name)
+        data = self.initialize_dataset(dataset)
         actions = data.features.reset_index()
         if game_id is not None:
             actions = actions[actions.game_id == game_id]

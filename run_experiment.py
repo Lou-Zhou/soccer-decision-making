@@ -51,7 +51,6 @@ def main(config: DictConfig):
     logger.info("⌛ Starting training!")
     #print(train_cfg)
     #print(component)
-    time.sleep(1000)
     result = component.train(
         dataset_train, optimized_metric=config.get("optimized_metric"), **train_cfg
     )

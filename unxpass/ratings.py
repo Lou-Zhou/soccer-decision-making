@@ -3,7 +3,7 @@ from typing import Callable
 import numpy as np
 import pandas as pd
 
-from unxpass.components import pass_selection_custom, pass_success, pass_value
+from unxpass.components import pass_selection, pass_success, pass_value
 from unxpass.datasets import PassesDataset
 
 
@@ -27,7 +27,7 @@ def _get_cell_indexes(x, y, x_bins=104, y_bins=68):
 class CreativeDecisionRating:
     def __init__(
         self,
-        pass_selection_component: pass_selection_custom.SoccerMapComponent,
+        pass_selection_component: pass_selection.SoccerMapComponent,
         pass_success_component: pass_success.XGBoostComponent,
         pass_value_component: pass_value.VaepModel,
     ):

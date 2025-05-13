@@ -1,11 +1,12 @@
+#convert buli xml to easier to read csv
 import pandas as pd
 from unxpass import load_xml
 import numpy as np
 from tqdm import tqdm
 import os
 def main():
-    xmls = "/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/raw_data/zipped_tracking/zip_output"
-    outputDir = "/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/raw_data/tracking_csv/"
+    xmls = "../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/raw_data/zipped_tracking/zip_output"
+    outputDir = "../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/raw_data/tracking_csv/"
     for xml in tqdm(os.listdir(xmls)):
         xmlPath = f"{xmls}/{xml}"
         gameId = xml.split(".")[0]

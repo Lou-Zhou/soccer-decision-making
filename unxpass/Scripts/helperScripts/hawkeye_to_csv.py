@@ -1,3 +1,4 @@
+#script which converts hard to read hawkeye json files to csv
 import pandas as pd
 import orjson
 import regex as re 
@@ -76,11 +77,11 @@ def read_hawkeye_game(filepath, ball = False, output_dir = None):
     return game_df.sort_values(by = ["elapsed"], ascending=True)
 
 
-path = "/home/lz80/rdf/sp161/shared/soccer-decision-making/allHawkeye"
+path = "../../../../rdf/sp161/shared/soccer-decision-making/Hawkeye/raw_data"
 centroids = "scrubbed.samples.centroids"
 balls = "scrubbed.samples.ball"
-output_dir_players = "/home/lz80/rdf/sp161/shared/soccer-decision-making/allHawkeye/tracking_csvs"
-output_dir_ball = "/home/lz80/rdf/sp161/shared/soccer-decision-making/allHawkeye/tracking_ball_csvs"
+output_dir_players = "../../../../rdf/sp161/shared/soccer-decision-making/Hawkeye/raw_data/tracking_csvs"
+output_dir_ball = "../../../../rdf/sp161/shared/soccer-decision-making/Hawkeye/raw_data/tracking_ball_csvs"
 allplayers= [f"{path}/{file}/{centroids}" for file in os.listdir(path) if file[0] != "." and file not in ["tracking_csvs", "tracking_ball_csvs"]] # skip hidden files
 allballs = [f"{path}/{file}/{balls}" for file in os.listdir(path) if file[0] != "." and file not in ["tracking_csvs", "tracking_ball_csvs"]]
 def main(player, ball):

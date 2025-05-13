@@ -483,8 +483,8 @@ class SoccerMapComponent(PassValueComponent, UnxPassPytorchComponent):
             transform=ToSoccerMapTensor(dim=(68, 104), label=f"{self.label}_xg"),
         )
 
-    def initialize_dataset(self, dataset: Callable, model_name) -> PassesDataset:
-        data = dataset(xfns=self.features, yfns=self.label, transform=self.transform, model_name = "val")
+    def initialize_dataset(self, dataset: Callable) -> PassesDataset:
+        data = dataset(xfns=self.features, yfns=self.label, transform=self.transform)
         t = data.labels.reset_index()
         return data
         # return Subset(data, t.index[t.success == self.success].values)

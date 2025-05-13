@@ -5,7 +5,6 @@ import numpy as np
 import json
 import os
 from tqdm import tqdm
-from unxpass.converters import conversions
 from unxpass.databases import SQLiteDatabase
 import traceback
 
@@ -13,7 +12,7 @@ def getGksTM(game_id, teams = False):
     """
     Gets Goalkeepers and Team mapping for a game
     """
-    lineups = f"/home/lz80/rdf/sp161/shared/soccer-decision-making/womens_euro_receipts/lineups/{game_id}.json"
+    lineups = f"../../../../rdf/sp161/shared/soccer-decision-making/WomensEuro/womens_euro_receipts/lineups/{game_id}.json"
     lineup_df = pd.read_json(lineups, convert_dates = False)
     team_1 = lineup_df['team_id'].loc[0]
     team_2 = lineup_df['team_id'].loc[1]
@@ -215,7 +214,7 @@ def getHeGameSpeed(game_file, uefa_map, hawkeye_to_sb, skeleton, db, framesback,
     #game_file = "2032219_Portugal_Switzerland.csv"
     game = game_file.split(".")[0]
     
-    tracking_path = f"/home/lz80/rdf/sp161/shared/soccer-decision-making/allHawkeye/tracking_csvs/{game_file}"
+    tracking_path = f"../../../../rdf/sp161/shared/soccer-decision-making/Hawkeye/raw_data/tracking_csvs/{game_file}"
     
     tracking = pd.read_csv(tracking_path)#.sort_values(by = ["elapsed"])
     tracking['statsbombid'] = tracking['uefaId'].astype(int).map(uefa_map)
@@ -232,7 +231,7 @@ def getHeGameSpeed(game_file, uefa_map, hawkeye_to_sb, skeleton, db, framesback,
     action_map = pd.Series(action_df['original_event_id'].values, index=action_df.index).to_dict()
     player_speeds = pd.DataFrame(index = game_skeleton)
     if ball:
-        ball_tracking_path = f"/home/lz80/rdf/sp161/shared/soccer-decision-making/allHawkeye/tracking_ball_csvs/{game_file}"
+        ball_tracking_path = f"/../../../../rdf/sp161/shared/soccer-decision-making/Hawkeye/raw_data/tracking_ball_csvs/{game_file}"
         ball_df = pd.read_csv(ball_tracking_path)
         ball_speeds = pd.DataFrame(index = game_skeleton)
         ball_starts = pd.DataFrame(index = game_skeleton)
@@ -277,7 +276,7 @@ def getHeSpeed(tracking_folder, skeleton_path, dbpath, framesback, framesforward
     player_speeds = []
     ball_starts = []
     ball_speeds = []
-    sequences = pd.read_csv("/home/lz80/un-xPass/unxpass/steffen/sequences_new.csv")
+    sequences = pd.read_csv("../../steffen/sequences_new.csv")
     timeelapsed = {
     1:0,
     2:45 * 60,
@@ -285,14 +284,14 @@ def getHeSpeed(tracking_folder, skeleton_path, dbpath, framesback, framesforward
     4: 105 * 60
     }
     sequences["BallReceipt"] = sequences["period"].map(timeelapsed) + sequences["BallReceipt"]#minute adjustment
-    with open("/home/lz80/rdf/sp161/shared/soccer-decision-making/hawkeye_to_sb.json", 'r') as file:
+    with open("../../../../rdf/sp161/shared/soccer-decision-making/hawkeye_to_sb.json", 'r') as file:
         hawkeye_to_sb = json.load(file)
     skeleton = pd.read_parquet(skeleton_path).index
     hawkeye_db = SQLiteDatabase(dbpath)
     framesback = 5
     framesforward = 5
     alltracking = [file for file in os.listdir(tracking_folder) if file.endswith(".csv")]
-    uefa_map = pd.read_csv("/home/lz80/un-xPass/unxpass/steffen/player_ids_matched.csv")
+    uefa_map = pd.read_csv("../../steffen/player_ids_matched.csv")
     uefa_map = pd.Series(uefa_map["sb_player_id"].values,index=uefa_map["uefa_player_id"]).to_dict()
     for game_file in tqdm(alltracking):
     #for game_file in test_track:
@@ -316,11 +315,11 @@ def generate_Hawkeye_From_Features(output_dir, frame_forward = 5, frame_back = 5
     """
     Generates features independent of converted statsbomb data, completely from hawkeye data and sequences
     """
-    uefa_map = pd.read_csv("/home/lz80/un-xPass/unxpass/steffen/player_ids_matched.csv")
+    uefa_map = pd.read_csv("../../steffen/player_ids_matched.csv")
     uefa_map = pd.Series(uefa_map["sb_player_id"].values,index=uefa_map["uefa_player_id"]).to_dict()
     frame_forward, frame_back = 5,5
     
-    with open("/home/lz80/rdf/sp161/shared/soccer-decision-making/hawkeye_to_sb.json", 'r') as file:
+    with open("../../../../rdf/sp161/shared/soccer-decision-making/hawkeye_to_sb.json", 'r') as file:
         hawkeye_to_sb = json.load(file)
     sb_to_hawkeye = dict((v,k) for k,v in hawkeye_to_sb.items())
     minute_adjustment = {
@@ -329,7 +328,7 @@ def generate_Hawkeye_From_Features(output_dir, frame_forward = 5, frame_back = 5
     3: 90 * 60,
     4: 105 * 60
     }
-    sequences = pd.read_csv("/home/lz80/un-xPass/unxpass/steffen/sequence_filtered.csv", delimiter = ";")
+    sequences = pd.read_csv("../../steffen/sequence_filtered.csv", delimiter = ";")
     sequences = sequences.rename(columns = {"Half":"period"})
     sequences["hawkeye_game_id"] = sequences["match_id"].map(sb_to_hawkeye)
     sequences["BallReceipt"] = sequences["period"].map(minute_adjustment) + sequences["BallReceipt"]
@@ -344,7 +343,7 @@ def generate_Hawkeye_From_Features(output_dir, frame_forward = 5, frame_back = 5
         ball_speed_dfs = []
         ball_end_dfs = []
     
-    for game in tqdm(sequences['hawkeye_game_id'].unique()[:1]):
+    for game in tqdm(sequences['hawkeye_game_id'].unique()):
         for frame_idx in tqdm(frame_idxs):
             if ball:
                 player_speeds, ball_starts, ball_speeds, ball_end = hawkeyeFeaturesGame(game, sequences, hawkeye_to_sb, uefa_map, frame_idx, frame_back, frame_forward, ball)
@@ -379,7 +378,7 @@ def hawkeyeFeaturesGame(game, sequences, hawkeye_to_sb, uefa_map, frame_idx = 1,
         ball_starts = pd.DataFrame(index = multiindex)
         ball_speeds = pd.DataFrame(index = multiindex)
         ball_end = pd.DataFrame(index = multiindex)
-    tracking_path = f"/home/lz80/rdf/sp161/shared/soccer-decision-making/allHawkeye/tracking_csvs/{game}.csv"
+    tracking_path = f"../../../../rdf/sp161/shared/soccer-decision-making/Hawkeye/raw_data/tracking_csvs/{game}.csv"
     statsbombid = hawkeye_to_sb[game]
     team_dict, gkslist, teams = getGksTM(statsbombid, True)
     trackingdf = pd.read_csv(tracking_path)
@@ -397,7 +396,7 @@ def hawkeyeFeaturesGame(game, sequences, hawkeye_to_sb, uefa_map, frame_idx = 1,
         action_id = row['index']
         game_id = row['match_id']
         if ball:
-            ball_tracking_path = f"/home/lz80/rdf/sp161/shared/soccer-decision-making/allHawkeye/tracking_ball_csvs/{game}.csv"
+            ball_tracking_path = f"../../../../rdf/sp161/shared/soccer-decision-making/Hawkeye/raw_data/tracking_ball_csvs/{game}.csv"
             ball_df = pd.read_csv(ball_tracking_path)
             speed_dict, ball_dict = he_speed_dict(sb_action_id, frame_idx, frame_back, frame_forward, game, trackingdf, sequences, gkslist, ball, ball_df)
             #
@@ -440,16 +439,16 @@ def getDummyLabels(output_dir, dummy_idxs):
     suc.to_parquet(success)
 def main(hawkeye, hawkeyeRaw, ball):
     if hawkeye:
-        #generate from pregenerated statsbomb features
-        dbpath = "/home/lz80/rdf/sp161/shared/soccer-decision-making/hawkeye_all.sql"
-        tracking_folder = "/home/lz80/rdf/sp161/shared/soccer-decision-making/allHawkeye/tracking_csvs"
-        skeleton_path = "/home/lz80/rdf/sp161/shared/soccer-decision-making/HawkEye_Features_2/x_endlocation.parquet"
-        output_path = "/home/lz80/rdf/sp161/shared/soccer-decision-making/HawkEye_Features_2/x_speed_frame_360.parquet"
+        #generate from pregenerated statsbomb features - legacy code
+        dbpath = "../../../../rdf/sp161/shared/soccer-decision-making/hawkeye_all.sql"
+        tracking_folder = "../../../../rdf/sp161/shared/soccer-decision-making/Hawkeye/raw_data/tracking_csvs"
+        skeleton_path = "../../../../rdf/sp161/shared/soccer-decision-making/HawkEye_Features_2/x_endlocation.parquet"
+        output_path = "../../../../rdf/sp161/shared/soccer-decision-making/HawkEye_Features_2/x_speed_frame_360.parquet"
         #player_speed_df.loc[skeleton], ball_start_df.loc[skeleton], ball_speeds_df.loc[skeleton]
         if ball:
             all_dfs = getHeSpeed(tracking_folder, skeleton_path, dbpath, 5, 5, ball)
-            ball_start_output = "/home/lz80/rdf/sp161/shared/soccer-decision-making/HawkEye_Features_2/x_startlocation_3.parquet"
-            ball_speed_output = "/home/lz80/rdf/sp161/shared/soccer-decision-making/HawkEye_Features_2/x_speed_3.parquet"
+            ball_start_output = "../../../../rdf/sp161/shared/soccer-decision-making/HawkEye_Features_2/x_startlocation_3.parquet"
+            ball_speed_output = "../../../../rdf/sp161/shared/soccer-decision-making/HawkEye_Features_2/x_speed_3.parquet"
             speeddf = all_dfs[0]
             all_dfs[1].to_parquet(ball_start_output)
             all_dfs[2].to_parquet(ball_speed_output)
@@ -457,10 +456,11 @@ def main(hawkeye, hawkeyeRaw, ball):
         else:
             speeddf = getHeSpeed(tracking_folder, skeleton_path, dbpath, 5, 5, ball)
         speeddf.to_parquet(output_path)
-    if hawkeye_raw:
+    if hawkeyeRaw:
         #generate completely from hawkeye data - recommend this
-        output_dir = "/home/lz80/rdf/sp161/shared/soccer-decision-making/Hawkeye_Features/Hawkeye_Features_Updated_wSecond_test"
-        sequence_games = pd.read_csv("/home/lz80/un-xPass/unxpass/steffen/sequence_filtered.csv", delimiter = ";")
+        output_dir = "../../../../rdf/sp161/shared/soccer-decision-making/Hawkeye/Hawkeye_Features/sequences_oneSec"
+        sequence_games = pd.read_csv("../../steffen/sequence_filtered.csv", delimiter = ";")
+        
         generate_Hawkeye_From_Features(output_dir, ball = ball, frame_idxs = range(1,27))
         dummy_idxs = pd.read_parquet(f"{output_dir}/x_startlocation.parquet").index
         getDummyLabels(output_dir, dummy_idxs)
