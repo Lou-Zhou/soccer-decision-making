@@ -149,7 +149,7 @@ def preProcessPass(events, tracking):
 
 def main():
     tqdm.pandas()
-    input_dir = "../../steffen/733681_Germany_Spain/"
+    input_dir = "../../../../rdf/sp161/shared/soccer-decision-making/steffen/733681_Germany_Spain/"
     output_dir = "../../../../rdf/sp161/shared/soccer-decision-making/SkillCorner/features"
     dir_id = input_dir.rstrip('/').split('/')[-1].split('_')[0]
     sc_events = pd.read_csv(f"{input_dir}/{dir_id}_dynamic_events.csv")

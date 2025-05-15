@@ -34,7 +34,7 @@ model_pass_wSpeeds = pass_success_speeds.SoccerMapComponent(
 
 custom_path = "../../../../rdf/sp161/shared/soccer-decision-making/Hawkeye_Features/Hawkeye_Features_Updated"
 dataset_test = partial(PassesDataset, path=custom_path)
-sequences = pd.read_csv("../../steffen/sequence_filtered.csv", delimiter = ";")
+sequences = pd.read_csv("../../../../rdf/sp161/shared/soccer-decision-making/steffen/sequence_filtered.csv", delimiter = ";")
 surfaces_wSpeed= model_pass_wSpeeds.predict_surface(dataset_test, db = None)
 #surfaces_nSpeed = model_pass_noSpeed.predict_surface(dataset_test, db = None, model_name = "sel")
 pdf_filename = "success_test_player.pdf"

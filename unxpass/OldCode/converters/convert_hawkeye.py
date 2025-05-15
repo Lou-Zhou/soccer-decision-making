@@ -1,4 +1,4 @@
-#Main script to convert from hawkeye to statsbomb
+#Main script to convert from hawkeye to statsbomb - legacy code
 import pandas as pd
 from os import listdir
 from os.path import isfile, join

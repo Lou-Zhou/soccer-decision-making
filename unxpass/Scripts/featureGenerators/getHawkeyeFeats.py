@@ -276,7 +276,7 @@ def getHeSpeed(tracking_folder, skeleton_path, dbpath, framesback, framesforward
     player_speeds = []
     ball_starts = []
     ball_speeds = []
-    sequences = pd.read_csv("../../steffen/sequences_new.csv")
+    sequences = pd.read_csv("../../../../rdf/sp161/shared/soccer-decision-making/steffen/sequences_new.csv")
     timeelapsed = {
     1:0,
     2:45 * 60,
@@ -291,7 +291,7 @@ def getHeSpeed(tracking_folder, skeleton_path, dbpath, framesback, framesforward
     framesback = 5
     framesforward = 5
     alltracking = [file for file in os.listdir(tracking_folder) if file.endswith(".csv")]
-    uefa_map = pd.read_csv("../../steffen/player_ids_matched.csv")
+    uefa_map = pd.read_csv("../../../../rdf/sp161/shared/soccer-decision-making/steffen/player_ids_matched.csv")
     uefa_map = pd.Series(uefa_map["sb_player_id"].values,index=uefa_map["uefa_player_id"]).to_dict()
     for game_file in tqdm(alltracking):
     #for game_file in test_track:
@@ -315,7 +315,7 @@ def generate_Hawkeye_From_Features(output_dir, frame_forward = 5, frame_back = 5
     """
     Generates features independent of converted statsbomb data, completely from hawkeye data and sequences
     """
-    uefa_map = pd.read_csv("../../steffen/player_ids_matched.csv")
+    uefa_map = pd.read_csv("../../../../rdf/sp161/shared/soccer-decision-making/steffen/player_ids_matched.csv")
     uefa_map = pd.Series(uefa_map["sb_player_id"].values,index=uefa_map["uefa_player_id"]).to_dict()
     frame_forward, frame_back = 5,5
     
@@ -328,7 +328,7 @@ def generate_Hawkeye_From_Features(output_dir, frame_forward = 5, frame_back = 5
     3: 90 * 60,
     4: 105 * 60
     }
-    sequences = pd.read_csv("../../steffen/sequence_filtered.csv", delimiter = ";")
+    sequences = pd.read_csv("../../../../rdf/sp161/shared/soccer-decision-making/steffen/sequence_filtered.csv", delimiter = ";")
     sequences = sequences.rename(columns = {"Half":"period"})
     sequences["hawkeye_game_id"] = sequences["match_id"].map(sb_to_hawkeye)
     sequences["BallReceipt"] = sequences["period"].map(minute_adjustment) + sequences["BallReceipt"]
@@ -459,7 +459,7 @@ def main(hawkeye, hawkeyeRaw, ball):
     if hawkeyeRaw:
         #generate completely from hawkeye data - recommend this
         output_dir = "../../../../rdf/sp161/shared/soccer-decision-making/Hawkeye/Hawkeye_Features/sequences_oneSec"
-        sequence_games = pd.read_csv("../../steffen/sequence_filtered.csv", delimiter = ";")
+        sequence_games = pd.read_csv("../../../../rdf/sp161/shared/soccer-decision-making/sequence_filtered.csv", delimiter = ";")
         
         generate_Hawkeye_From_Features(output_dir, ball = ball, frame_idxs = range(1,27))
         dummy_idxs = pd.read_parquet(f"{output_dir}/x_startlocation.parquet").index

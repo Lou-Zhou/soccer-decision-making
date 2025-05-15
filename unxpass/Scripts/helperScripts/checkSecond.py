@@ -31,9 +31,9 @@ def trimSecondIdx(sequences, hawkeye_events, seconds_after = 1):
             excludeIdx.append(index)
     return excludeIdx
 def main():
-    sequences = pd.read_csv("../../steffen/sequence_filtered.csv", delimiter = ";")
+    sequences = pd.read_csv("../../../../rdf/sp161/shared/soccer-decision-making/steffen/sequence_filtered.csv", delimiter = ";")
     #hawkeyeEvents
-    hawkeye_events = os.listdir("../../../../rdf/sp161/shared/soccer-decision-making/womens_euro/events")
+    hawkeye_events = os.listdir("../../../../rdf/sp161/shared/soccer-decision-making/WomensEuro/womens_euro/events")
     excludeIdx = trimSecondIdx(sequences, hawkeye_events, seconds_after = 3)
     #print(excludeIdx)
 if __name__ == "__main__": main()

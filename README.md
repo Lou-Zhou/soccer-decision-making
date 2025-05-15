@@ -1,32 +1,12 @@
-<div align="center">
-<img src="docs/logo.png" height="250">
-<br/>
-
-[![Python Version: 3.9+](https://img.shields.io/badge/Python-3.7.1+-blue.svg)](https://pypi.org/project/socceraction)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-green.svg)](https://opensource.org/license/apache-2-0/)
-[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
-[![Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-<br/>
-
-</div>
-
-## What is it?
-
-un-xPass is a framework to **evaluate the creative abilities of soccer players** using [StatsBomb 360 data](https://statsbomb.com/what-we-do/soccer-data/360-2/). The methodology is based on the intuition that creativity involves not only accomplishing something useful, but doing it in a unique or atypical way. Therefore, it assesses whether a player's passes (1) differ from the typical pass that most other players would have selected in a similar situation and (2) have more promising results than the typical pass. A combination of **three machine learning models** are used to estimate the originality and expected value of a pass:
-
-1.  **Pass selection:** the likelihood of each possible pass destination
-2.  **Pass value**: the long-term reward of each passing option
-3.  **Pass success:** the success probability of each passing option
-
-For each model, the framework provides a deep learning model based on the [SoccerMap](https://arxiv.org/abs/2010.10202) architecture, a feature-based [XGBoost](https://xgboost.readthedocs.io/en/stable/) model and a set of baseline models.
+This repository is code originally from [un-xPass: Measuring Soccer Player’s Creativity](https://github.com/ML-KULeuven/un-xPass) adapted to quantify the quality of decision-making in soccer for Hawkeye and SkillCorner data by training various Soccermap Models to analyze the success, selection, and value of passes to potential recipients.
 
 ## Installation
 
-You can install a development version directly from GitHub. This requires [Poetry](https://python-poetry.org/).
+Getting Started(WIP):
 
 ```sh
 # Clone the repository
-$ git clone git://github.com/ML-KULeuven/un-xPass.git
+$ git clone https://github.com/Lou-Zhou/soccer-decision-making.git
 $ cd un-xPass
 # Create a virtual environment
 $ python3 -m venv .venv
@@ -34,112 +14,46 @@ $ source .venv/bin/activate
 # Install the package and its dependencies
 $ poetry install
 ```
+## Generating Parquet Features
 
-You should now be able to run the command-line interface (CLI).
+Since data formatted as a directory of parquet files, various python scripts can be used to get these features from tracking and event data for all three data formats for the soccermap models:
+1. Sportec Data - unxpass/Scripts/featureGenerators/getBuliFeats.py
+2. Hawkeye Data - unxpass/Scripts/featureGenerators/getHawkeyeFeats.py
+3. SkillCorner Data - unxpass/Scripts/featureGenerators/getSkillCornerFeatures.py
 
-```
-$ unxpass --help
-```
+For the Hawkeye features, since we are looking at times surrounding an event as well, model outputs will be specified in a (game_id, action_id-frame_index) way, where frame_index describes the number of frames from the original reception. In addition, editFeatures.py should be run to edit features as needed(e.g. getting only the successful passes for the value model or trimming superfluous frames as there may exist situations where another play happens 1 second after reception)
 
-## Getting started
+## Training Models
 
-This section gives a quick introduction on how to get started using the CLI. For examples on how to use the library in your own code, please refer to the [notebooks](./notebooks) directory.
+From these features, we can then train the three model components using the following scripts in unxpass/Scripts/trainingscripts. The models use the configurations as described in config/experiment and can be changed depending on need. These scripts will output both the last trained model(in run_id form) as well as the model with the smallest lost(in checkpoint form). Using unxpass/Scripts/helperScripts/checkpntToModel.py, we can then turn these checkpoints into run_ids so we can standardize model storage. 
 
-<details>
-<summary><b>STEP 1: Obtain StatsBomb 360 data.</b></summary>
+For the four value models, it is important to change the experiment name(e.g. "pass_value/soccermap_offensive_completed") so that they match the model as desired.
 
-The models are built on [StatsBomb 360 event stream data](https://statsbomb.com/what-we-do/soccer-data/360-2/). StatsBomb has made data of certain leagues freely available for public non-commercial use at <https://github.com/statsbomb/open-data>. This open data can be accessed without the need of authentication, but its use is subject to a [user agreement](https://github.com/statsbomb/open-data/blob/master/LICENSE.pdf). The code below shows how to fetch the public data of EURO 2020 from the repository and store it in an SQLite database.
+In addition, the paths to the configurations in all these scripts must be set manually as these paths must be absolute.
 
-```bash
-unxpass load-data \
-  sqlite://$(pwd)/stores/database.sql \
-  --getter="remote" \
-  --competition-id="55" \
-  --season-id="43"
-```
+## Visualizations
 
-Apart from the SQLite interface, the unxpass library also supports storing data in a HDF file. To use this data storage interface, replace `sqlite://` with `hdf://` in the above command. Additional interfaces can be supported by subclassing `unxpass.databases.Database`.
+We can generate visualizations for both the plays and the model results using scripts found in Scripts/visualizationScripts:
+1. getAnimations.py - generates animations for a Bundesliga play
+2. getmodeloutput.py - generates model outputs for play(s)
+3. plotSpeeds.py - plots the speed of a player over the course of a game(used to check speed smoothing values)
+4. visualizeFeatures - plots the game states from the parquet files
 
-</details>
+## Getting Results
 
-<details>
-<summary><b>STEP 2: Create train and test data.</b></summary>
+Using resultGenerators/getResults.py, we can then generate two csvs: 
 
-Now we will extract all passes from the data, create a feature representation and assign a label to each pass. The code below shows how to create a train and test set in `./stores/datasets/euro2020` with all features and labels required to train and evaluate the models. The [`./config/dataset/euro2020/train.yaml`](./config/dataset/euro2020/train.yaml) file defines which leagues, seasons and games should be used to create the training dataset. Similarly, the [`./config/dataset/euro2020/test.yaml`](./config/dataset/euro2020/test.yaml) file defines which leagues, seasons and games should be used to create the evaluation set.
+1. allModelOutputs.csv - describes the model outputs for every frame evaluated in the data
+2. allModelOutputsAggregated.csv - describes the model outputs aggregated for every event in the data
 
-```bash
-unxpass create-dataset \
-  sqlite://$(pwd)/stores/database.sql \
-  $(pwd)/stores/datasets/euro2020/train \
-  $(pwd)/config/dataset/euro2020/train.yaml
-```
+## Hyperparameter Tuning
 
-```bash
-unxpass create-dataset \
-  sqlite://$(pwd)/stores/database.sql \
-  $(pwd)/stores/datasets/euro2020/test \
-  $(pwd)/config/dataset/euro2020/test.yaml
-```
+Hyperparameter tuning can be done using run_experiment.py with the following command:
 
-_(this will take ~2 hours to run)_
+python3 run_experiment.py \
+  experiment="experiment_name" \
+  hparams_search="hparam_method" 
 
-It is also possible to generate a specific set of features and labels. For example, to generate only the "relative start location" features and "success" label, you can add `--xfn="relative_startlocation" --yfn="success"` to the above command.
+For the soccermap models, the experiment name will be of the form pass_(success/selection)/soccermap or pass_value/soccermap_{offensive/defensive}_{completed/failed} and the hyperparameter method for soccermap models will be "soccermap_optuna". In hparams_search/soccermap_optuna, the search over the learning rates and batch sizes can be changed as desired. This script will generate a path to a checkpoint which can then be turned into a run_id using helperScripts/checkpntToModel.py.
 
-</details>
-
-<details>
-<summary><b>STEP 3: Train model components.</b></summary>
-
-All models are dynamically instantiated from a hierarchical configuration file managed by the [Hydra](https://github.com/facebookresearch/hydra) framework. The main config is available in [config/config.yaml](./config/config.yaml) and a set of example configurations for training specific models is available in [config/experiment](./config/experiment). The experiment configs allow you to overwrite parameters from the main config and allow you to easily iterate over new model configurations! You can run a chosen experiment config with:
-
-```bash
-unxpass train \
-  $(pwd)/config \
-  $(pwd)/stores/datasets/euro2020/train \
-  experiment="pass_success/threesixty"
-```
-
-Experiments are tracked using [MLFlow](https://mlflow.org/). You can view the results of your experiments by running `mlflow ui --backend-store-uri stores/model` in the root directory of the project and browsing to <http://localhost:5000>.
-
-To optimize the model's hyperparameters, you can use the `run_experiment.py` script. This script uses [Optuna](https://optuna.org/) to automate the search and (optionally) [Ray](https://www.ray.io/) to run the search in parallel on a computing cluster. The script can be run with:
-
-```bash
-python run_experiment.py \
-  experiment="pass_success/threesixty" \
-  hparams_search="xgboost_optuna" \
-  hydra/launcher="ray" \
-  hydra.launcher.ray.init.address="ray://123.45.67.89:10001"
-```
-
-</details>
-
-<details>
-<summary><b>STEP 4: Compute creativity ratings.</b></summary>
-
-Once you have trained all required models, they can be used to compute creativity ratings. Therefore, specify a dataset to compute ratings for and the run ID of a Soccermap-based pass selection model, an XGBoost-based pass selection model and a VAEP model. The run IDs are printed after training a component or can be found in the MLFlow UI.
-
-```bash
-unxpass rate \
-  sqlite://$(pwd)/stores/database.sql \
-  $(pwd)/stores/datasets/euro2020/test \
-  runs:/788ec5a232af46e59ac984d50ecfc1d5 \
-  runs:/f0d0458824324fbbb257550bf09d924a \
-  runs:/f4f4efb5f0534f03a1d513141e06c962
-```
-
-</details>
-
-## Contributing
-
-All contributions, bug reports, bug fixes, documentation improvements, enhancements, and ideas are welcome. However, be aware that the code is not actively developed. Its primary use is to enable reproducibility of our research. If you believe there is a feature missing, feel free to raise a feature request, but please do be aware that the overwhelming likelihood is that your feature request will not be accepted.
-To learn more on how to contribute, see the [Contributor Guide](./CONTRIBUTING.rst).
-
-## Research
-
-If you make use of this package in your research, please consider citing the following paper:
-
-- Pieter Robberechts, Maaike Van Roy and Jesse Davis. **un-xPass: Measuring Soccer Player’s Creativity.** Proceedings of the 29th ACM SIGKDD Conference on Knowledge Discovery and Data Mining. 2023. <br/>[ [pdf](https://people.cs.kuleuven.be/~pieter.robberechts/repo/robberechts-kdd23-unxpass.pdf) | [bibtex](./docs/unxpass.bibtex) ]
-
-## License
-
-Distributed under the terms of the [Apache License, Version 2.0](https://opensource.org/license/apache-2-0/), un-xPass is free and open source software. Although not strictly required, we appreciate it if you include a link to this repo or cite our research in your work if you make use of it.
+It should also be noted that all paths should be set so that they run properly(with proper rdf access) if the working directory is the folder that the script is in, besides the config paths, which must be asolute.
