@@ -39,13 +39,12 @@ def main(config: DictConfig):
     # Train model
     logger.info("Instantiating training dataset")
     dataset_train: Callable = partial(
-        PassesDataset, path="../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/features/features_subset"
+        PassesDataset, path="../rdf/sp161/shared/soccer-decision-making/Bundesliga/features/features_subset"#subset of one game of code to test, should be changed when actually running
     )
     logger.info(f"Instantiating model component <{config.component._target_}>")
     component: UnxpassComponent = hydra.utils.instantiate(config.component, _convert_="partial")
     # Setup callbacks
     train_cfg = OmegaConf.to_object(config.get("train_cfg", DictConfig({})))
-    print(train_cfg)
     utils.instantiate_callbacks(train_cfg)
     utils.instantiate_loggers(train_cfg)
     logger.info("⌛ Starting training!")

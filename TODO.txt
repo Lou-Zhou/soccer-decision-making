@@ -1,4 +1,0 @@
-1. Read Bauer Paper
-2. Keep on working on adding player speeds
-    a. Bundesliga data - adding dummy event before each to get true speeds
-    b. Hawkeye - ditto buli
