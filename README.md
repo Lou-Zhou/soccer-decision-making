@@ -2,16 +2,13 @@ This repository is code originally from [un-xPass: Measuring Soccer Player’s C
 
 ## Installation
 
-Getting Started(WIP):
+Getting Started, requiring [Poetry]{https://python-poetry.org/}:
 
 ```sh
-# Clone the repository
 $ git clone https://github.com/Lou-Zhou/soccer-decision-making.git
 $ cd un-xPass
-# Create a virtual environment
 $ python3 -m venv .venv
 $ source .venv/bin/activate
-# Install the package and its dependencies
 $ poetry install
 ```
 ## Generating Parquet Features
@@ -50,9 +47,11 @@ Using resultGenerators/getResults.py, we can then generate two csvs:
 
 Hyperparameter tuning can be done using run_experiment.py with the following command:
 
+```
 python3 run_experiment.py \
   experiment="experiment_name" \
   hparams_search="hparam_method" 
+```
 
 For the soccermap models, the experiment name will be of the form pass_(success/selection)/soccermap or pass_value/soccermap_{offensive/defensive}_{completed/failed} and the hyperparameter method for soccermap models will be "soccermap_optuna". In hparams_search/soccermap_optuna, the search over the learning rates and batch sizes can be changed as desired. This script will generate a path to a checkpoint which can then be turned into a run_id using helperScripts/checkpntToModel.py.
 
