@@ -15,4 +15,4 @@ hydra:
     # define range of hyperparameters
     params:
       model_cfg.lr: 1e-3, 1e-4, 1e-5, 1e-6
-      train_cfg.batch_size: 16, 32
+      train_cfg.batch_size: 16, 32, 64
