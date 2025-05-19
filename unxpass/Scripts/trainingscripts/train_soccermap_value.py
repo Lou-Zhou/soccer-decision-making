@@ -16,7 +16,7 @@ from omegaconf import DictConfig, OmegaConf
 
 
 config_fp = "/home/lz80/un-xPass/config/" #absolute path
-experiment = "pass_value/soccermap_offensive_completed"#experiment to be used, should be change depending on the model wanted
+experiment = "pass_value/soccermap_defensive_failed"#experiment to be used, should be change depending on the model wanted
 overrides = [f"experiment={experiment}"]
 cfg = __main__.parse_config(config_path=config_fp, overrides = overrides)
 side = experiment.split("_")[2]
@@ -28,10 +28,11 @@ train_cfg = OmegaConf.to_object(cfg.get("train_cfg", DictConfig({})))
 utils.instantiate_callbacks(train_cfg)
 utils.instantiate_loggers(train_cfg)
 custom_path = "../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/features/features"
+#custom_path = "/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/features/oldFeatures/all_features_defl_fail"
 if completed:
-    custom_path = f"{custom_path}_success"
+   custom_path = f"{custom_path}_success"
 else:
-    custom_path = f"{custom_path}_failed"
+   custom_path = f"{custom_path}_failed"
 dataset_train = partial(PassesDataset, path=custom_path)
 logger.info("Starting training!")
 pass_value_model = pass_value_speeds.SoccerMapComponent(model = pass_value_speeds.PytorchSoccerMapModel(), offensive = offensive, success = completed)
@@ -42,8 +43,8 @@ with mlflow.start_run() as run:
         fp = Path(tmpdirname)
         OmegaConf.save(config=cfg, f=fp / "config.yaml")
         mlflow.log_artifact(str(fp / "config.yaml"))
-    pass_value_model.train(dataset_train,optimized_metric=cfg.get("optimized_metric"), **train_cfg)
-    mlflow.pytorch.log_model(pass_value_modelmodel.model, "model")
+    pass_value_model.train(dataset_train, trainer = {"max_epochs":30})#optimized_metric=cfg.get("optimized_metric"), **train_cfg) #testing this
+    mlflow.pytorch.log_model(pass_value_model.model, "model")
     run_id = run.info.run_id
     print(f"Pass Value {side} {state} Model saved with run_id: {run_id}")
 logger.info("✅ Finished training. Model saved with ID %s", run.info.run_id)

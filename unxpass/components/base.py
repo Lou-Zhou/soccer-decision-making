@@ -330,8 +330,10 @@ class UnxPassPytorchComponent(UnxpassComponent):
             # Load dataset
             data = self.initialize_dataset(dataset)
             actions = data.features.reset_index()
+            gameIndex = "game_id" if "game_id" in actions.columns else "match_id"  
+            actionIndex = "action_id" if "action_id" in actions.columns else "index"
             if game_id is not None:
-                actions = actions[actions.game_id == game_id]
+                actions = actions[actions[gameIndex] == game_id]
                 data = Subset(data, actions.index.values)
             dataloader = DataLoader(
                 data,
@@ -346,7 +348,7 @@ class UnxPassPytorchComponent(UnxpassComponent):
 
             output = defaultdict(dict)
             for i, action in actions.iterrows():
-                output[action["match_id"]][action["index"]] = predictions[i][0].detach().numpy()
+                output[action[gameIndex]][action[actionIndex]] = predictions[i][0].detach().numpy()
             return dict(output)
         # Load dataset
         #print(f"Calling dataset with: {dataset}")

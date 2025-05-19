@@ -9,27 +9,28 @@ from unxpass.databases import SQLiteDatabase
 from collections import defaultdict
 import json
 def main(pdf_filename, sample = 300, random = True):
-    direct = "../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/features/features_test"
-    recept = "../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/features/features_filtered"
+    direct = "/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/features/features_failed"
+    recept = "/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/features/features_failed"
     buli_ff= pd.read_parquet(f"{direct}/x_freeze_frame_360.parquet")
     buli_end = pd.read_parquet(f"{direct}/x_endlocation.parquet")
     buli_start = pd.read_parquet(f"{direct}/x_startlocation.parquet")
     buli_speed = pd.read_parquet(f"{direct}/x_speed.parquet")
     buli_success = pd.read_parquet(f"{direct}/y_success.parquet")
     recipient_end = pd.read_parquet(f"{recept}/x_endlocation.parquet")
-    distances = pd.merge(buli_start, buli_end, left_index = True, right_index = True)
-    distances = pd.merge(distances, buli_success, left_index = True, right_index = True)
-    distances['distance'] = np.sqrt((distances['end_x_a0'] - distances["start_x_a0"]) ** 2 + (distances['end_y_a0'] - distances["start_y_a0"])**2)
-    filtered = distances[(distances["distance"] > 40) & (~distances['success']) & ((distances['end_y_a0'] < 5) | (distances['end_y_a0'] > 60))]
-    print(f"Successful {filtered['success'].sum()} / {len(filtered)}")
-    recept_success = pd.read_parquet(f"{recept}/y_success.parquet")
-    recept_success = recept_success[~recept_success['success']]
+    # distances = pd.merge(buli_start, buli_end, left_index = True, right_index = True)
+    # distances = pd.merge(distances, buli_success, left_index = True, right_index = True)
+    # distances['distance'] = np.sqrt((distances['end_x_a0'] - distances["start_x_a0"]) ** 2 + (distances['end_y_a0'] - distances["start_y_a0"])**2)
+    # filtered = distances[(distances["distance"] > 40) & (~distances['success']) & ((distances['end_y_a0'] < 5) | (distances['end_y_a0'] > 60))]
+    # print(f"Successful {filtered['success'].sum()} / {len(filtered)}")
+    # recept_success = pd.read_parquet(f"{recept}/y_success.parquet")
+    # recept_success = recept_success[~recept_success['success']]
 # Convert to regular dict if desired
     
     if random:
-        plotIdxs = recept_success.sample(sample).index
+        plotIdxs = buli_start.sample(sample).index
     else: 
-        plotIdxs = recept_success[:sample].index
+        plotIdxs = buli_start[:sample].index
+    plotIdxs = [("DFL-MAT-J03YLK", 18480800001239)]
     index_dict = defaultdict(list)
     with PdfPages(pdf_filename) as pdf:
         for idx in tqdm(plotIdxs):
@@ -41,7 +42,7 @@ def main(pdf_filename, sample = 300, random = True):
             speed = buli_speed.loc[idx]
             end = buli_end.loc[idx]
             recept_end = recipient_end.loc[idx]
-            fig = visualize_coords_from_parquet(ff, start, speed, idx, title = f"Game {game_id} | Action {play}", surface = None, surface_kwargs = None, ax = None, log = False, playerOnly = False, modelType = "sel")
+            fig = plotPlays.visualize_play_from_parquet(ff, start, end , idx, ball_speed = speed,title = f"Game {game_id} | Action {play}")
             pdf.savefig(fig)
             plt.close(fig)
             index_dict[game_id].append(play)

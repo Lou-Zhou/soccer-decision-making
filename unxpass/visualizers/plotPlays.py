@@ -7,15 +7,14 @@ pd.options.mode.chained_assignment = None
 import numpy as np
 import mlflow
 from scipy.ndimage import zoom
-
+from matplotlib.patches import Rectangle
 import warnings
 warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
 from unxpass.databases import SQLiteDatabase
-from unxpass.datasets_custom import PassesDataset, CompletedPassesDataset, FailedPassesDataset
-from unxpass.components import pass_selection, pass_value, pass_success, pass_value_custom
+from unxpass.datasets import PassesDataset, CompletedPassesDataset, FailedPassesDataset
+from unxpass.components import pass_selection, pass_value, pass_success
 from unxpass.components.utils import load_model
-from unxpass.visualization import plot_action, plot_action_og
-from unxpass.ratings_custom import LocationPredictions
+from unxpass.visualizers.visualization import plot_action, plot_action_og
 
 from matplotlib.backends.backend_pdf import PdfPages
 def plot_single_model_output(game_id, action_id, title, surfaces, db, xg = False, log = False):
@@ -38,7 +37,8 @@ def plot_single_model_output(game_id, action_id, title, surfaces, db, xg = False
     plot_action_og(ex_action, ax = axs, surface = surface, log = log, surface_kwargs={"interpolation":"bilinear", "vmin": None, "vmax": None, "cmap": "Greens"}, show_action = False)
     plt.tight_layout()
 import mplsoccer
-def visualize_coords_from_parquet(freeze_frame, start, speed, action_tuple, title = None, surface = None, surface_kwargs = None, ax = None, log = False, playerOnly = False, modelType = "sel"):
+
+def visualize_coords_from_parquet(freeze_frame, start, action_tuple, ball_speed = None, title = None, surface = None, surface_kwargs = None, ax = None, log = False, playerOnly = False, modelType = "sel", plotSurface = True):
     """
     Visualize gamestate from parquet data
     """
@@ -51,6 +51,9 @@ def visualize_coords_from_parquet(freeze_frame, start, speed, action_tuple, titl
     y_velo = [player['y_velo'] for player in ff_action]
     ball_x = start['start_x_a0']
     ball_y = start['start_y_a0']
+    if ball_speed is not None:
+        ball_x_velo = ball_speed['speedx_a02']
+        ball_y_velo = ball_speed['speedy_a02']
     pitch = mplsoccer.pitch.Pitch(pitch_type='custom', 
                   half=False,         # Show only half the pitch (positive quadrant)
                   pitch_length=105,   # Length of the pitch (in meters)
@@ -59,10 +62,12 @@ def visualize_coords_from_parquet(freeze_frame, start, speed, action_tuple, titl
                   axis=True)          # Show axis for coordinates
     
     # Create a figure
+    totalSum = 0
     if ax is None:
         fig, ax = pitch.draw(figsize=(10, 7))
     else:
         pitch.draw(ax=ax)
+    totalSum = 0
     for player in ff_action:
         if player['teammate']:
             color = 'b'
@@ -74,35 +79,63 @@ def visualize_coords_from_parquet(freeze_frame, start, speed, action_tuple, titl
         end_x, end_y = player['x'] + player['x_velo'], player['y'] + player['y_velo']
         pitch.arrows(start_x, start_y, end_x, end_y, width=1, headwidth=5, color='gray', ax=ax)
         alpha = 1
+        clipped_x = int(np.rint(start_x))#clipping between values
+        clipped_y = int(np.rint(start_y))
+        x_range = [clipped_x - 2, clipped_x + 2]
+        y_range = [clipped_y - 2, clipped_y + 2]
         if playerOnly and surface is not None:
-            fixed_x = np.rint(max(0, min(start_x, 103)))#clipping between values
-            fixed_y = np.rint(max(0, min(start_y, 67)))
-            x_range = [int(fixed_x - 1), int(fixed_x + 1)]
-            y_range = [int(fixed_y - 1), int(fixed_y + 1)]
+            y0 = max(0, y_range[0])
+            y1 = min(surface.shape[0], y_range[1])
+            x0 = max(0, x_range[0])
+            x1 = min(surface.shape[1], x_range[1])
             if modelType == "sel":
-                playerSlice = surface[y_range[0]:y_range[1], x_range[0]:x_range[1]]
+                playerSlice = surface[y0:y1, x0:x1]
                 if len(playerSlice) == 0:
                     alpha = 0#player is out
                 else:
-                    alpha = np.max(playerSlice)
+                    alpha = np.sum(playerSlice)
+                #checking to make sure sum to close to 1
                 vis_alpha = alpha + .2
+                if player['teammate'] and not player['actor']:
+                    totalSum += alpha
+                    rect = Rectangle(
+                    (x0,y0),
+                    4,
+                    4,
+                    linewidth=1,
+                    edgecolor='blue',
+                    facecolor='none',
+                    alpha=1
+                )
+                    ax.add_patch(rect)
             else:
-                alpha = surface[int(fixed_y), int(fixed_x)]
+                clipped_x = min(surface.shape[1] - 1, clipped_x)
+                clipped_y = min(surface.shape[0] - 1, clipped_y)
+                clipped_x = max(0, clipped_x)
+                clipped_y = max(0, clipped_y)
+                alpha = surface[int(clipped_y), int(clipped_x)]
                 vis_alpha = alpha
                 #print(alpha)
             alpha = np.round(alpha, 3)
-            if player['teammate'] and not player['actor']:
-                ax.text(start_x, start_y + .5, str(alpha), fontsize=8, color='black', ha='left', va='bottom')
             vis_alpha = min(vis_alpha, 1)#make sure everything is visible
             if not player['teammate']:
                 vis_alpha = 1
-        else:
+        if modelType != "sel":
+            vis_alpha = 1
+        if player['teammate'] and not player['actor']:
+            ax.text(start_x, start_y + .5, str(alpha), fontsize=8, color='black', ha='left', va='bottom')
+        if surface is None:
             vis_alpha = 1
         pitch.scatter([start_x], [start_y], c=color, s=30, ax=ax, marker = marker, alpha = vis_alpha)
     # Scatter the start and end points for clarity
-
     pitch.scatter([ball_x], [ball_y], c="w", ec = "k", s=20, ax=ax)
-    if surface is not None and not playerOnly:
+    if ball_speed is not None:
+        pitch.arrows(ball_x, ball_y, ball_x + ball_x_velo, ball_y + ball_y_velo, width=1, headwidth=5, color='gray', ax=ax)
+    if end is not None:
+        pitch.arrows(ball_x, ball_y, ball_x_end, ball_y_end, width = 2, ax = ax)
+    if modelType == "sel":
+        title = f"{title}, total sum: {np.round(totalSum,5)}"
+    if surface is not None and plotSurface:
         if log:
             ax.imshow(np.log(surface), extent=[0.0, 105.0, 0.0, 68.0], origin="lower", **surface_kwargs)
         else:
@@ -112,7 +145,176 @@ def visualize_coords_from_parquet(freeze_frame, start, speed, action_tuple, titl
     ax.set_title(title)
     
     # Show the plot
-    plt.show()
+    #plt.show()
+    #else:
+    #    return ax
+    return fig
+
+def visualize_surface(freeze_frame, start,action_tuple, ball_speed = None, title = None, ax = None, surface = None, surface_kwargs = None, log = False, modelType = "val"):
+    """
+    Visualize gamestate from parquet data without a surface
+    """
+    ff_action = freeze_frame['freeze_frame_360_a0']
+    teammate_x = [player['x'] for player in ff_action if player['teammate']]
+    teammate_y = [player['y'] for player in ff_action if player['teammate']]
+    opponent_x = [player['x'] for player in ff_action if not player['teammate']]
+    opponent_y = [player['y'] for player in ff_action if not player['teammate']]
+    x_velo = [player['x_velo'] for player in ff_action]
+    y_velo = [player['y_velo'] for player in ff_action]
+    ball_x = start['start_x_a0']
+    ball_y = start['start_y_a0']
+    if ball_speed is not None:
+        ball_x_velo = ball_speed['speedx_a02']
+        ball_y_velo = ball_speed['speedy_a02']
+    pitch = mplsoccer.pitch.Pitch(pitch_type='custom', 
+                  half=False,         # Show only half the pitch (positive quadrant)
+                  pitch_length=105,   # Length of the pitch (in meters)
+                  pitch_width=68,     # Width of the pitch (in meters)
+                  goal_type='box',
+                  axis=True)          # Show axis for coordinates
+    
+    # Create a figure
+    totalSum = 0
+    show = False
+    if ax is None:
+        fig, ax = pitch.draw(figsize=(10, 7))
+        show = True
+    else:
+        pitch.draw(ax=ax)
+    totalSum = 0
+    for player in ff_action:
+        if player['teammate']:
+            color = 'b'
+            marker = 'o'
+        else:
+            color = 'r'
+            marker = 'x'
+        start_x, start_y = player['x'], player['y']
+        end_x, end_y = player['x'] + player['x_velo'], player['y'] + player['y_velo']
+        pitch.arrows(start_x, start_y, end_x, end_y, width=1, headwidth=5, color='gray', ax=ax)
+        alpha = 1
+        clipped_x = int(np.rint(start_x))#clipping between values
+        clipped_y = int(np.rint(start_y))
+        x_range = [clipped_x - 2, clipped_x + 2]
+        y_range = [clipped_y - 2, clipped_y + 2]
+        y0 = max(0, y_range[0])
+        y1 = min(surface.shape[0], y_range[1])
+        x0 = max(0, x_range[0])
+        x1 = min(surface.shape[1], x_range[1])
+        if modelType == "sel":
+            playerSlice = surface[y0:y1, x0:x1]
+            if len(playerSlice) == 0:
+                alpha = 0#player is out
+            else:
+                alpha = np.sum(playerSlice)
+            #checking to make sure sum to close to 1
+            vis_alpha = alpha + .2
+            if player['teammate'] and not player['actor']:
+                totalSum += alpha
+                rect = Rectangle(
+                (x0,y0),
+                4,
+                4,
+                linewidth=1,
+                edgecolor='blue',
+                facecolor='none',
+                alpha=1
+            )
+                ax.add_patch(rect)
+        else:
+            clipped_x = min(surface.shape[1] - 1, clipped_x)
+            clipped_y = min(surface.shape[0] - 1, clipped_y)
+            clipped_x = max(0, clipped_x)
+            clipped_y = max(0, clipped_y)
+            alpha = surface[int(clipped_y), int(clipped_x)]
+            vis_alpha = alpha
+            #print(alpha)
+        alpha = np.round(alpha, 3)
+        vis_alpha = min(vis_alpha, 1)#make sure everything is visible
+        if not player['teammate'] or modelType != "sel":
+            vis_alpha = 1
+        if player['teammate'] and not player['actor']:
+            ax.text(start_x, start_y + .5, str(alpha), fontsize=8, color='black', ha='left', va='bottom')
+        pitch.scatter([start_x], [start_y], c=color, s=30, ax=ax, marker = marker, alpha = vis_alpha)
+    # Scatter the start and end points for clarity
+    pitch.scatter([ball_x], [ball_y], c="w", ec = "k", s=20, ax=ax)
+    if ball_speed is not None:
+        pitch.arrows(ball_x, ball_y, ball_x + ball_x_velo, ball_y + ball_y_velo, width=1, headwidth=5, color='gray', ax=ax)
+    # Set labels
+    if log:
+        ax.imshow(np.log(surface), extent=[0.0, 105.0, 0.0, 68.0], origin="lower", **surface_kwargs)
+    else:
+        ax.imshow(surface, extent=[0.0, 105.0, 0.0, 68.0], origin="lower", **surface_kwargs)
+    ax.set_title(title)
+    
+    # Show the plot
+    #plt.show()
+    #else:
+    #    return ax
+    if show:
+        return fig
+
+def visualize_play_from_parquet(freeze_frame, start, end, action_tuple, ball_speed = None, title = None, ax = None):
+    """
+    Visualize gamestate from parquet data without a surface
+    """
+    ff_action = freeze_frame['freeze_frame_360_a0']
+    teammate_x = [player['x'] for player in ff_action if player['teammate']]
+    teammate_y = [player['y'] for player in ff_action if player['teammate']]
+    opponent_x = [player['x'] for player in ff_action if not player['teammate']]
+    opponent_y = [player['y'] for player in ff_action if not player['teammate']]
+    x_velo = [player['x_velo'] for player in ff_action]
+    y_velo = [player['y_velo'] for player in ff_action]
+    ball_x = start['start_x_a0']
+    ball_y = start['start_y_a0']
+    if end is not None:
+        ball_x_end = end['end_x_a0']
+        ball_y_end = end['end_y_a0']
+    if ball_speed is not None:
+        ball_x_velo = ball_speed['speedx_a02']
+        ball_y_velo = ball_speed['speedy_a02']
+    pitch = mplsoccer.pitch.Pitch(pitch_type='custom', 
+                  half=False,         # Show only half the pitch (positive quadrant)
+                  pitch_length=105,   # Length of the pitch (in meters)
+                  pitch_width=68,     # Width of the pitch (in meters)
+                  goal_type='box',
+                  axis=True)          # Show axis for coordinates
+    
+    # Create a figure
+    totalSum = 0
+    show = False
+    if ax is None:
+        fig, ax = pitch.draw(figsize=(10, 7))
+        show = True
+    else:
+        pitch.draw(ax=ax)
+    totalSum = 0
+    for player in ff_action:
+        if player['teammate']:
+            color = 'b'
+            marker = 'o'
+        else:
+            color = 'r'
+            marker = 'x'
+        start_x, start_y = player['x'], player['y']
+        end_x, end_y = player['x'] + player['x_velo'], player['y'] + player['y_velo']
+        pitch.arrows(start_x, start_y, end_x, end_y, width=1, headwidth=5, color='gray', ax=ax)
+        pitch.scatter([start_x], [start_y], c=color, s=30, ax=ax, marker = marker, alpha = 1)
+    # Scatter the start and end points for clarity
+    pitch.scatter([ball_x], [ball_y], c="w", ec = "k", s=20, ax=ax)
+    if ball_speed is not None:
+        pitch.arrows(ball_x, ball_y, ball_x + ball_x_velo, ball_y + ball_y_velo, width=1, headwidth=5, color='gray', ax=ax)
+    if end is not None:
+        pitch.arrows(ball_x, ball_y, ball_x_end, ball_y_end, width = 2, ax = ax)
+    # Set labels
+    ax.set_title(title)
+    
+    # Show the plot
+    #plt.show()
+    #else:
+    #    return ax
+    if show:
+        return fig
 def plot_single_model_comparison_features(game_id, action_id, freeze_frame, start, speed, title, surfaces_1, surfaces_2, subtitle_1 = None, subtitle_2 = None, xg = False, log = False):
     """
     Plots comparison between two models from the parquet data
@@ -352,6 +554,76 @@ def visualize_coords_from_BuliTracking(frame_num, events, tracking, ax = None):
     # Set labels
     ax.set_title(f"Original Coords, Frame:{frame_num}")
     plt.legend()
+    
+    # Show the plot
+    plt.show()
+
+
+def visualize_parquet_animation(freeze_frame, start, speed, action_tuple, title = None, surfaces = None, surface_kwargs = None, ax = None, log = False, playerOnly = False, modelType = "sel"):
+    if surfaces is not None:
+        surface = surfaces[action_tuple[0]][action_tuple[1]]
+    ff_action = freeze_frame.loc[action_tuple, 'freeze_frame_360_a0']
+    teammate_x = [player['x'] for player in ff_action if player['teammate']]
+    teammate_y = [player['y'] for player in ff_action if player['teammate']]
+    opponent_x = [player['x'] for player in ff_action if not player['teammate']]
+    opponent_y = [player['y'] for player in ff_action if not player['teammate']]
+    x_velo = [player['x_velo'] for player in ff_action]
+    y_velo = [player['y_velo'] for player in ff_action]
+    ball_x = start.loc[action_tuple, 'start_x_a0']
+    ball_y = start.loc[action_tuple, 'start_y_a0']
+    pitch = mplsoccer.pitch.Pitch(pitch_type='custom', 
+                  half=False,         # Show only half the pitch (positive quadrant)
+                  pitch_length=105,   # Length of the pitch (in meters)
+                  pitch_width=68,     # Width of the pitch (in meters)
+                  goal_type='box',
+                  axis=True)          # Show axis for coordinates
+    
+    # Create a figure
+    if ax is None:
+        fig, ax = pitch.draw(figsize=(10, 7))
+    else:
+        pitch.draw(ax=ax)
+    for player in ff_action:
+        start_x, start_y = player['x'], player['y']
+        end_x, end_y = player['x'] + player['x_velo'], player['y'] + player['y_velo']
+        pitch.arrows(start_x, start_y, end_x, end_y, width=1, headwidth=5, color='gray', ax=ax)
+        if playerOnly and player['teammate'] and not player['actor'] and surfaces is not None:#get player vals
+            clipped_x = int(np.rint(start_x))
+            clipped_y = int(np.rint(start_y))
+            if modelType == "sel":
+                
+                x_range = [clipped_x - 2, clipped_x + 2]
+                y_range = [clipped_y - 2, clipped_y + 2]
+                y0 = max(0, y_range[0])
+                y1 = min(surface.shape[0], y_range[1])
+                x0 = max(0, x_range[0])
+                x1 = min(surface.shape[1], x_range[1])
+                playerSlice = surface[y0:y1, x0:x1]
+                if len(playerSlice) == 0:
+                    alpha = 0
+                else:
+                    alpha = np.sum(playerSlice)
+            else:
+                clipped_x = min(surface.shape[1] - 1, clipped_x)
+                clipped_y = min(surface.shape[0] - 1, clipped_y)
+                clipped_x = max(0, clipped_x)
+                clipped_y = max(0, clipped_y)
+                alpha = surface[int(clipped_y), int(clipped_x)]
+                vis_alpha = alpha
+                #print(alpha)
+            ax.text(start_x, start_y + .5, str(np.round(alpha, 3)), fontsize=8, color='black', ha='left', va='bottom')
+    # Scatter the start and end points for clarity
+    pitch.scatter(opponent_x, opponent_y, c="r", s=30, ax=ax, marker = "x")
+    pitch.scatter(teammate_x, teammate_y, c="b", s=30, ax=ax, marker = "o")
+    pitch.scatter([ball_x], [ball_y], c="w", ec = "k", s=20, ax=ax)
+    if not playerOnly and surfaces is not None:
+        if log:
+            ax.imshow(np.log(surface), extent=[0.0, 105.0, 0.0, 68.0], origin="lower", **surface_kwargs)
+        else:
+            ax.imshow(surface, extent=[0.0, 105.0, 0.0, 68.0], origin="lower", **surface_kwargs)
+    
+    # Set labels
+    ax.set_title(title)
     
     # Show the plot
     plt.show()

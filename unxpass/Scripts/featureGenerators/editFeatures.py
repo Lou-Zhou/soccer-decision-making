@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 from unxpass.Scripts.helperScripts import checkSecond
 import numpy as np
-
+from unxpass.databases import SQLiteDatabase
 def point_to_ray_distance(P, A, B):
     P = np.array(P)
     A = np.array(A)
@@ -154,23 +154,33 @@ def sanityCheck(start_df, end_df):
 def combineIdx(idxs1, idxs2):
     idxs = set(idxs1).union(set(idxs2))
     return list(idxs)
+from unxpass.Scripts.visualizationScripts import getAnimations
 def main():
-    input_dir = "../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/features/features_filtered"
-    output_dir = "../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/features/features_failed"
-    startloc = pd.read_parquet(f"{input_dir}/x_startlocation.parquet")
-    endloc = pd.read_parquet(f"{input_dir}/x_endlocation.parquet")
-    success = pd.read_parquet(f"{input_dir}/y_success.parquet")
+    input_dir = "../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/features/features_failed"
+    output_dir = "../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/features/features_failed_test"
+
+    test_dir = "/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/features/oldFeatures/all_features_defl_fail"
+    oldFeats = pd.read_parquet(f"{test_dir}/y_success.parquet").index
+    db = SQLiteDatabase("/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/buli_all.sql")
+    translated = getAnimations.getIdxDiff(db, oldFeats)
+    currentidxs = pd.read_parquet(f"{input_dir}/y_success.parquet").index
+    allidxs = list(set(translated).intersection(set(currentidxs)))
+    #startloc = pd.read_parquet(f"{input_dir}/x_startlocation.parquet")
+    #endloc = pd.read_parquet(f"{input_dir}/x_endlocation.parquet")
+    #success = pd.read_parquet(f"{input_dir}/y_success.parquet")
     #impossibleIdx = sanityCheck(startloc, endloc)
     #outlieridx = getOutlierIdx(f"{input_dir}/x_freeze_frame_360.parquet") #outlier idx based on speed
     #noChange = getNoChange(startloc, endloc) #no change in start and end locs
     #allidxs = combineIdx(outlieridx, noChange)
     #allidxs = combineIdx(allidxs, impossibleIdx)
-    allidxs = getSuccessIdx(success)
+    #allidxs = getSuccessIdx(success)
     #sequences = pd.read_csv("/home/lz80/un-xPass/unxpass/steffen/sequence_filtered.csv", delimiter = ";")
     #hawkeyeEvents
     #hawkeye_events = os.listdir("/home/lz80/rdf/sp161/shared/soccer-decision-making/womens_euro/events")
     #trimIdxs = checkSecond.trimSecondIdx(sequences, hawkeye_events)
-    getIdxs(input_dir, output_dir, idxs = allidxs, include = False)
+    getIdxs(input_dir, output_dir, idxs = allidxs, include = True)
+    #oldConcedes = pd.read_parquet("/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/features/oldFeatures/all_features_defl_fail/y_concedes_xg.parquet")    
+    #oldConcedes.to_parquet(f"{output_dir}/y_concedes_xg.parquet")
 
     #replace end locations
     # print("Replacing End Locations...")

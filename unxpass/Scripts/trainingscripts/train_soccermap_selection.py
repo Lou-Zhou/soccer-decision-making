@@ -39,5 +39,6 @@ with mlflow.start_run() as run:
         mlflow.log_artifact(str(fp / "config.yaml"))
     pass_selection_model.train(dataset_train, optimized_metric=cfg.get("optimized_metric"), **train_cfg)
     log_model(pass_selection_model.model, "component")
-    # Evaluate model on test set, using the best model achieved during training
+    run_id = run.info.run_id
+    print(f"Pass Selection Model saved with run_id: {run_id}")
 logger.info("✅ Finished training. Model saved with ID %s", run.info.run_id)

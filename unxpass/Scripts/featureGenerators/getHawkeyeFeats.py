@@ -7,7 +7,7 @@ import os
 from tqdm import tqdm
 from unxpass.databases import SQLiteDatabase
 import traceback
-
+from collections import defaultdict
 def getGksTM(game_id, teams = False):
     """
     Gets Goalkeepers and Team mapping for a game
@@ -36,30 +36,25 @@ def he_ball_speed(sb_action_id, frame_idx, frame_back, frame_forward, game, trac
     """
     Gets features derived from the ball for a hawkeye frame
     """
-    startx = 0
-    starty = 0
-    speedx = 0
-    speedy = 0
-    dummy_set = {"start_x":startx, 
-        "start_y": starty,
-        "speed_x": speedx,
-        "speed_y": speedy,
+    dummy_set = {"start_x":-10000, 
+        "start_y": -10000,
+        "speed_x": 0,
+        "speed_y": 0,
         "end_x": 0,#don't need end locations since we aren't training, just evaluating
         "end_y":0}
-    if sb_action_id in sequences["id"].values:#sequence of interest
-        sequence_df = sequences[sequences["id"] == sb_action_id].iloc[0] 
-        period = sequence_df["period"]
-    else:
-        return dummy_set
+    sequence_df = sequences[sequences["id"] == sb_action_id].iloc[0] 
+    period = sequence_df["period"]
     time = sequence_df["BallReceipt"]
     if pd.isna(time):
         return dummy_set#ballreceipt can be empty
-    time = time + ((int(frame_idx) - 1) * .04)
-    start_time = time - (frame_back * .04)#need to account for time before and after half
-    end_time = time + (frame_forward * .04)
+    time = time + ((int(frame_idx)) * .04)
+    start_time = time - (2 * frame_back * .04)#goes framesback * 2 frames(10 in this case) back
+    end_time = time #+ (frame_forward * .04)
     times = trackingdf[(trackingdf["elapsed"] >= start_time) & (trackingdf["elapsed"] <= end_time) & (trackingdf['period'] == period)]
     times = times.sort_values(by = ["elapsed"])
     middle = len(times) // 2
+    if len(times) == 0:
+        return dummy_set
     event_time = times[times['elapsed'] == min(times['elapsed'].unique(), key=lambda x:abs(x-time))].iloc[0]['position'].strip("[]").split(", ")
     #print(event_time == times.iloc[middle]['position'].strip("[]").split(", "))
     #event_time = times.iloc[middle]['position']
@@ -87,35 +82,33 @@ def he_speed_dict(sb_action_id, frame_idx, frame_back, frame_forward, game, trac
     """
     Gets features derived from player data and combines with ball data if ball is True
     """
+    
     output = []
     if ball:
         ball_dict = he_ball_speed(sb_action_id, frame_idx, frame_back, frame_forward, game, balldf, sequences)
     else:
         ball_dict = None
+    
     dummy_set =  {
             "teammate": False,
-            "x":0,
-            "y":0,
+            "x":-10000,
+            "y":-10000,
             "player": None,
             "actor": False,
             "goalkeeper":False,
-            "x_velo": 0,
-            "y_velo": 0
+            "x_velo": -10000,
+            "y_velo": -10000
         }
-    if sb_action_id in sequences["id"].values:#sequence of interest
-        sequence_df = sequences[sequences["id"] == sb_action_id].iloc[0] 
-    else: #this should nto happen
-        if ball is not None:
-            return [dummy_set],  ball_dict
-        return [dummy_set]#just get first value, dummy data to keep compiler happy
+    sequence_df = sequences[sequences["id"] == sb_action_id].iloc[0] 
     time = sequence_df["BallReceipt"]
     if pd.isna(time):
         if ball:
             return [dummy_set],  ball_dict
         return [dummy_set]#ballreceipt can be empty
+    
     team = sequence_df["possession_team_id"]
     period = sequence_df['period']
-    time = time + ((int(frame_idx) - 1) * .04)
+    time = time + ((int(frame_idx)) * .04)
     start_time = time - (frame_back * .04)#need to account for time before and after half
     end_time = time + (frame_forward * .04)
     times = trackingdf.loc[(trackingdf["elapsed"] >= start_time) & (trackingdf["elapsed"] <= end_time) & (trackingdf['period'] == period), "elapsed"].unique()
@@ -123,42 +116,52 @@ def he_speed_dict(sb_action_id, frame_idx, frame_back, frame_forward, game, trac
     #may have overlapping values due to added time
     start_time = times[0]
     end_time = times[-1]
+    
     #check edge case of x frames back causes to go back to prev period or next period
     #print(start['period'].iloc[0]
+    
     middle = int((frame_back + frame_forward)/2)
     event_time = times[middle]
     actor = sequence_df["player_id"]
-    current_tracking = clean_he_frame_df(trackingdf[trackingdf["elapsed"] == event_time], team)
-    start_tracking = clean_he_frame_df(trackingdf[trackingdf["elapsed"] == start_time], team)
-    end_tracking = clean_he_frame_df(trackingdf[trackingdf["elapsed"] == end_time], team)
+    current_tracking = clean_he_frame_df(trackingdf[(trackingdf["elapsed"].values == event_time) & (trackingdf['period'] == period)], team)
+    start_tracking = clean_he_frame_df(trackingdf[(trackingdf["elapsed"].values == start_time)  & (trackingdf['period'] == period)], team)
+    end_tracking = clean_he_frame_df(trackingdf[(trackingdf["elapsed"].values == end_time)  & (trackingdf['period'] == period)], team)
     time_elapsed = (frame_back + frame_forward) * .04
-    #problem: there are players in start_tracking that are not in end_tracking
-    for player in start_tracking["statsbombid"]:
-        isActor = actor == player
-        goalkeeper = player in gkslist
-        start_x = start_tracking[start_tracking["statsbombid"] == player]["x"].values[0]
-        start_y = start_tracking[start_tracking["statsbombid"] == player]["y"].values[0]
-        end_x = end_tracking[end_tracking["statsbombid"] == player]["x"].values[0]
-        end_y = end_tracking[end_tracking["statsbombid"] == player]["y"].values[0]
-        x_velo = (end_x - start_x) / time_elapsed
-        y_velo = (end_y - start_y) / time_elapsed
-        x_loc = current_tracking[current_tracking["statsbombid"] == player]["x"].values[0]
-        y_loc = current_tracking[current_tracking["statsbombid"] == player]["y"].values[0]
-        location = [end_x, end_y]
-        isTeammate = end_tracking[end_tracking["statsbombid"] == player]["isTeammate"].iloc[0]
-        #print(isActor)
-        speed_dict = {
-            "teammate": isTeammate,
-            "goalkeeper": goalkeeper,
-            "x": x_loc,
-            "y": y_loc,
-            "actor": isActor,
-            "player": player,
-            "x_velo": x_velo,
-            "y_velo": y_velo
-        }
-        output.append(speed_dict)
+    
+    start_tracking = start_tracking.set_index("statsbombid")
+    end_tracking = end_tracking.set_index("statsbombid")
+    current_tracking = current_tracking.set_index("statsbombid")
 
+    gks_set = set(gkslist)
+
+    for player in start_tracking.index:
+        try:
+            isActor = (actor == player)
+            goalkeeper = (player in gks_set)
+
+            start_x = start_tracking.at[player, "x"]
+            start_y = start_tracking.at[player, "y"]
+            end_x = end_tracking.at[player, "x"]
+            end_y = end_tracking.at[player, "y"]
+            x_velo = (end_x - start_x) / time_elapsed
+            y_velo = (end_y - start_y) / time_elapsed
+            x_loc = current_tracking.at[player, "x"]
+            y_loc = current_tracking.at[player, "y"]
+            isTeammate = end_tracking.at[player, "isTeammate"]
+
+            speed_dict = {
+                "teammate": isTeammate,
+                "goalkeeper": goalkeeper,
+                "x": x_loc,
+                "y": y_loc,
+                "actor": isActor,
+                "player": player,
+                "x_velo": x_velo,
+                "y_velo": y_velo
+            }
+            output.append(speed_dict)
+        except KeyError:
+            continue  # Skip player if missing from any DataFrame
     return getFlip(output, ball_dict)
 
 def getFlip(freezeframe, secondary_frame = None):
@@ -194,17 +197,35 @@ def convert_Hawkeye(coords):
     return [x, y]
 
 def clean_he_frame_df(df, team):
+    start = timer()
     """
-    Cleans the hawkeye feature data
+    Cleans the hawkeye feature data — optimized
     """
     df = df.copy()
-    df.loc[:,"isTeammate"] = df["team"] == int(team)
-    needFlip = float(df[(df['isGk']) & (df['isTeammate'])].iloc[0]['position'].strip("[]").split(", ")[0]) > 0
-    #df.loc[:,'needsFlip'] = needFlip
-    df.loc[:,'position'] = df.apply(lambda row: convert_Hawkeye(row['position'].strip("[]").split(", ")), axis=1)
-    df.loc[:,'x'] = df.loc[:,'position'].apply(lambda x: x[0])
-    df.loc[:,'y'] = df.loc[:,'position'].apply(lambda x: x[1])
+
+    # Boolean mask for teammates
+    df["isTeammate"] = df["team"] == int(team)
+
+    # Get GK X-position for teammate
+    gk_pos = df.loc[df["isGk"] & df["isTeammate"], "position"].iloc[0]
+    gk_x = float(gk_pos.strip("[]").split(", ")[0])
+    needFlip = gk_x > 0
+
+    # Vectorized position cleaning
+    # Remove brackets and split into x/y strings
+    pos_strs = df["position"].str.strip("[]").str.split(", ")
+
+    # Convert list of strings to list of tuples, then apply convert_Hawkeye
+    converted_positions = [convert_Hawkeye([float(x), float(y)]) for x, y in pos_strs]
+
+    # Extract x and y from converted positions
+    df["x"] = [pos[0] for pos in converted_positions]
+    df["y"] = [pos[1] for pos in converted_positions]
+    df["position"] = converted_positions
+    end = timer()
+    #print(end - start)
     return df
+
 
 #Game specific
 def getHeGameSpeed(game_file, uefa_map, hawkeye_to_sb, skeleton, db, framesback, framesforward, sequences, ball = False):
@@ -248,7 +269,7 @@ def getHeGameSpeed(game_file, uefa_map, hawkeye_to_sb, skeleton, db, framesback,
             sb_action_id = action_sb_id.rsplit("-", 1)[0]#if interesting event(denoted by dash)
             frame_idx = action_sb_id.rsplit("-", 1)[1]
         
-        #start = timer()    
+           
         try:
             if ball:
                 speed_dict, ball_dict = he_speed_dict(sb_action_id, frame_idx, framesback, framesforward, game, tracking, sequences, gks, ball, ball_df)
@@ -260,11 +281,12 @@ def getHeGameSpeed(game_file, uefa_map, hawkeye_to_sb, skeleton, db, framesback,
             else:
                 speed_dict = he_speed_dict(sb_action_id, frame_idx, framesback, framesforward, game, tracking, sequences, gks, ball)
             player_speeds.at[(game_id, action_id), "freeze_frame_360_a0"] = speed_dict
-
         except Exception as e:
             res = dict((v,k) for k,v in hawkeye_to_sb.items())
             print(f"Error processing game {game_id}, {res[int(game_id)]}, action {action_id}: {traceback.format_exc()}")
             speed_dict = {}
+        end = timer()
+        print(end - start)
     if ball:
         return player_speeds, ball_starts, ball_speeds
     return player_speeds
@@ -311,13 +333,12 @@ def getHeSpeed(tracking_folder, skeleton_path, dbpath, framesback, framesforward
     return player_speed_df
 #sequences
 
-def generate_Hawkeye_From_Features(output_dir, frame_forward = 5, frame_back = 5, ball = False, frame_idxs = [1]):
+def generate_Hawkeye_From_Features(output_dir, frame_forward = 5, frame_back = 5, ball = False, frame_idxs = [0]):
     """
     Generates features independent of converted statsbomb data, completely from hawkeye data and sequences
     """
     uefa_map = pd.read_csv("../../../../rdf/sp161/shared/soccer-decision-making/steffen/player_ids_matched.csv")
     uefa_map = pd.Series(uefa_map["sb_player_id"].values,index=uefa_map["uefa_player_id"]).to_dict()
-    frame_forward, frame_back = 5,5
     
     with open("../../../../rdf/sp161/shared/soccer-decision-making/hawkeye_to_sb.json", 'r') as file:
         hawkeye_to_sb = json.load(file)
@@ -344,15 +365,14 @@ def generate_Hawkeye_From_Features(output_dir, frame_forward = 5, frame_back = 5
         ball_end_dfs = []
     
     for game in tqdm(sequences['hawkeye_game_id'].unique()):
-        for frame_idx in tqdm(frame_idxs):
-            if ball:
-                player_speeds, ball_starts, ball_speeds, ball_end = hawkeyeFeaturesGame(game, sequences, hawkeye_to_sb, uefa_map, frame_idx, frame_back, frame_forward, ball)
-                ball_start_dfs.append(ball_starts)
-                ball_speed_dfs.append(ball_speeds)
-                ball_end_dfs.append(ball_end)
-            else:
-                player_speeds = hawkeyeFeaturesGame(game, sequences, hawkeye_to_sb, uefa_map, frame_idx, frame_back, frame_forward, ball)
-            frame_dfs.append(player_speeds)
+        if ball:
+            player_speeds, ball_starts, ball_speeds, ball_end = hawkeyeFeaturesGame(game, sequences, hawkeye_to_sb, uefa_map, frame_idxs, frame_back, frame_forward, ball)
+            ball_start_dfs.append(ball_starts)
+            ball_speed_dfs.append(ball_speeds)
+            ball_end_dfs.append(ball_end)
+        else:
+            player_speeds = hawkeyeFeaturesGame(game, sequences, hawkeye_to_sb, uefa_map, frame_idxs, frame_back, frame_forward, ball)
+        frame_dfs.append(player_speeds)
     if ball:
         combined_ball_start = pd.concat(ball_start_dfs)
         combined_ball_speed = pd.concat(ball_speed_dfs)
@@ -364,13 +384,21 @@ def generate_Hawkeye_From_Features(output_dir, frame_forward = 5, frame_back = 5
     combined_frame_dfs = pd.concat(frame_dfs)
     combined_frame_dfs.to_parquet(frame_path)
 
-def hawkeyeFeaturesGame(game, sequences, hawkeye_to_sb, uefa_map, frame_idx = 1, frame_back = 5, frame_forward = 5, ball = False):
+def hawkeyeFeaturesGame(game, sequences, hawkeye_to_sb, uefa_map, frame_idxs, frame_back = 5, frame_forward = 5, ball = False):
     """
     Gets hawkeye features from scratch for each game
     """
     sequence_games = sequences[sequences['hawkeye_game_id'] == game].copy()
-    sequence_games.loc[:, 'index'] = sequence_games.loc[:, 'index'].astype(str) + f"-{int(frame_idx) - 1}"
-    multiindex = pd.MultiIndex.from_frame(sequence_games[['match_id', 'index']])
+    multiIndex = []
+    for frame_idx in frame_idxs:
+        for idx, row in sequence_games.iterrows():
+            if frame_idx < 0:
+                index = f"{row['index']}-n{abs(int(frame_idx))}"
+            else:
+                index = f"{row['index']}-{int(frame_idx)}"
+            match = row['match_id']
+            multiIndex.append((match, index))
+    multiindex = pd.MultiIndex.from_tuples(multiIndex, names = ['game_id', 'action_id'])
     player_speeds = pd.DataFrame(index = multiindex)
     player_speeds["freeze_frame_360_a0"] = np.nan
     player_speeds["freeze_frame_360_a0"] = player_speeds["freeze_frame_360_a0"].astype(object)
@@ -378,37 +406,52 @@ def hawkeyeFeaturesGame(game, sequences, hawkeye_to_sb, uefa_map, frame_idx = 1,
         ball_starts = pd.DataFrame(index = multiindex)
         ball_speeds = pd.DataFrame(index = multiindex)
         ball_end = pd.DataFrame(index = multiindex)
+        ball_tracking_path = f"../../../../rdf/sp161/shared/soccer-decision-making/Hawkeye/raw_data/tracking_ball_csvs/{game}.csv"
+        ball_df = pd.read_csv(ball_tracking_path)
     tracking_path = f"../../../../rdf/sp161/shared/soccer-decision-making/Hawkeye/raw_data/tracking_csvs/{game}.csv"
     statsbombid = hawkeye_to_sb[game]
     team_dict, gkslist, teams = getGksTM(statsbombid, True)
     trackingdf = pd.read_csv(tracking_path)
+    
     trackingdf['statsbombid'] = trackingdf['uefaId'].astype(int).map(uefa_map)
     trackingdf['team'] = trackingdf['statsbombid'].map(team_dict)
+    
     if teams[0] not in trackingdf['team'].values and teams[1] not in trackingdf['team'].values:
         raise Exception("No Team Found")
     elif teams[0] not in trackingdf['team'].values:
         trackingdf['team'] = trackingdf['team'].fillna(teams[0])
     elif teams[1] not in trackingdf['team'].values:
         trackingdf['team'] = trackingdf['team'].fillna(teams[1])
+    
     trackingdf['isGk'] = trackingdf['role'] == "Goalkeeper" 
-    for idx, row in tqdm(sequence_games.iterrows(), leave = False):
-        sb_action_id = row['id']
-        action_id = row['index']
-        game_id = row['match_id']
-        if ball:
-            ball_tracking_path = f"../../../../rdf/sp161/shared/soccer-decision-making/Hawkeye/raw_data/tracking_ball_csvs/{game}.csv"
-            ball_df = pd.read_csv(ball_tracking_path)
-            speed_dict, ball_dict = he_speed_dict(sb_action_id, frame_idx, frame_back, frame_forward, game, trackingdf, sequences, gkslist, ball, ball_df)
-            #
-            ball_starts.at[(game_id, action_id), "start_x_a0"] = ball_dict["start_x"]
-            ball_starts.at[(game_id, action_id), "start_y_a0"] = ball_dict["start_y"]
-            ball_speeds.at[(game_id, action_id), "speedx_a02"] = ball_dict["speed_x"]
-            ball_speeds.at[(game_id, action_id), "speedy_a02"] = ball_dict["speed_y"]
-            ball_end.at[(game_id, action_id), "end_x_a0"] = 60
-            ball_end.at[(game_id, action_id), "end_y_a0"] = 40#dummy to center
-        else:
-            speed_dict = he_speed_dict(sb_action_id, frame_idx, frame_back, frame_forward, game, trackingdf, sequences, gkslist, ball)
-        player_speeds.at[(game_id, action_id), "freeze_frame_360_a0"] = speed_dict
+    
+    for frame_idx in tqdm(frame_idxs):
+        for idx, row in tqdm(sequence_games.iterrows(), leave = False):
+            sb_action_id = row['id']
+            if frame_idx < 0:
+                action_id = f"{row['index']}-n{abs(int(frame_idx))}"
+            else:
+                action_id = f"{row['index']}-{int(frame_idx)}"
+            
+            game_id = int(row['match_id'])
+            if ball:
+                try:
+                    speed_dict, ball_dict = he_speed_dict(sb_action_id, frame_idx, frame_back, frame_forward, game, trackingdf, sequences, gkslist, ball, ball_df)
+                except Exception as e:
+                    print(f"Error processing game {game_id}, action {action_id}: {traceback.format_exc()}")
+                    speed_dict = {}
+                    ball_dict = defaultdict(int)
+                
+                ball_starts.at[(game_id, action_id), "start_x_a0"] = ball_dict["start_x"]
+                ball_starts.at[(game_id, action_id), "start_y_a0"] = ball_dict["start_y"]
+                ball_speeds.at[(game_id, action_id), "speedx_a02"] = ball_dict["speed_x"]
+                ball_speeds.at[(game_id, action_id), "speedy_a02"] = ball_dict["speed_y"]
+                ball_end.at[(game_id, action_id), "end_x_a0"] = 60
+                ball_end.at[(game_id, action_id), "end_y_a0"] = 40#dummy to center
+            else:
+                speed_dict = he_speed_dict(sb_action_id, frame_idx, frame_back, frame_forward, game, trackingdf, sequences, gkslist, ball)
+            player_speeds.at[(game_id, action_id), "freeze_frame_360_a0"] = speed_dict
+    
     if ball:
         return player_speeds, ball_starts, ball_speeds, ball_end
     return player_speeds
@@ -458,10 +501,11 @@ def main(hawkeye, hawkeyeRaw, ball):
         speeddf.to_parquet(output_path)
     if hawkeyeRaw:
         #generate completely from hawkeye data - recommend this
-        output_dir = "../../../../rdf/sp161/shared/soccer-decision-making/Hawkeye/Hawkeye_Features/sequences_oneSec"
-        sequence_games = pd.read_csv("../../../../rdf/sp161/shared/soccer-decision-making/sequence_filtered.csv", delimiter = ";")
+        #/home/lz80/rdf/sp161/shared/soccer-decision-making/steffen/sequence_filtered.csv
+        output_dir = "../../../../rdf/sp161/shared/soccer-decision-making/Hawkeye/Hawkeye_Features/sequences_tenSecPrior"
+        sequence_games = pd.read_csv("../../../../rdf/sp161/shared/soccer-decision-making/steffen/sequence_filtered.csv", delimiter = ";")
         
-        generate_Hawkeye_From_Features(output_dir, ball = ball, frame_idxs = range(1,27))
+        generate_Hawkeye_From_Features(output_dir, ball = ball, frame_idxs = range(-250,1))
         dummy_idxs = pd.read_parquet(f"{output_dir}/x_startlocation.parquet").index
         getDummyLabels(output_dir, dummy_idxs)
 #main(buli, hawkeye, hawkeye_raw, ball)

@@ -65,42 +65,26 @@ def load_players(path, to_dict):
         df = pd.Series(df["PlayingPosition"].values,index=df["PersonId"]).to_dict()
     return df
 def load_event(path):
-        # Load and parse the XML file
-        tree = ET.parse(path)  # Replace 'events.xml' with your file path
+        tree = ET.parse(path) 
         root = tree.getroot()
-
-        # Initialize an empty list to store the parsed data
         data = []
-
-        # Function to recursively parse the XML tree
         def parse_event(event_element, parent_data):
             for child in event_element:
-                # Combine parent data with child attributes
                 child_data = {**parent_data, **child.attrib}
-
-                # If the child has further sub-elements, recurse
                 if list(child):
                     parse_event(child, child_data)
                 else:
-                    # If the child is a leaf node, append the data to the list
                     data.append(child_data)
-
-        # Loop through each Event in the XML
         for event in root.findall('Event'):
-            event_data = event.attrib  # Get attributes of the Event node
+            event_data = event.attrib 
             for child in event:
-                #print(child)
                 if child.tag == "Play":
                     for subchild in child:
                         event_data["EventType"] = subchild.tag
                 else:
                     event_data["EventType"] = child.tag
             parse_event(event, event_data)
-
-        # Convert the list of dictionaries to a Pandas DataFrame
         df = pd.DataFrame(data)
-
-        # Display the DataFrame
         return df
 def load_csv_event(path):
     events = pd.read_csv(path ,sep = ';', encoding='latin-1', on_bad_lines='skip')

@@ -8,10 +8,10 @@ def getPlayerResults(surface, freeze_frame, type):
     """
     for player in freeze_frame:
         start_x, start_y = player['x'], player['y']
-        fixed_x = np.rint(max(0, min(start_x, 103)))#clipping between values
-        fixed_y = np.rint(max(0, min(start_y, 67)))
-        x_range = [int(fixed_x - 1), int(fixed_x + 1)]
-        y_range = [int(fixed_y - 1), int(fixed_y + 1)]
+        clipped_x = int(np.rint(start_x))#clipping between values
+        clipped_y = int(np.rint(start_y))
+        x_range = [clipped_x - 2, clipped_x + 2]
+        y_range = [clipped_y - 2, clipped_y + 2]
         if modelType == "selection":
             playerSlice = surface[y_range[0]:y_range[1], x_range[0]:x_range[1]]
             if len(playerSlice) == 0:
@@ -19,7 +19,11 @@ def getPlayerResults(surface, freeze_frame, type):
             else:
                 alpha = np.max(playerSlice)
         else:
-            alpha = surface[int(fixed_y), int(fixed_x)]
+            clipped_x = min(surface.shape[1] - 1, clipped_x)
+            clipped_y = min(surface.shape[0] - 1, clipped_y)
+            clipped_x = max(0, clipped_x)
+            clipped_y = max(0, clipped_y)
+            alpha = surface[int(clipped_y), int(clipped_x)]
         player[modelType] = alpha
 
 def getAllPlayerResults(row, surfaces_map):
@@ -61,6 +65,15 @@ def aggregateFreezeFrames(df, models):
 
     return aggregated
 
+def getGameResults(game_id, success_model, selection_model, value_success_offensive_model, value_success_defensive_model, value_fail_offensive_model, value_fail_defensive_model):
+    """
+    Generates results for a game
+    """
+    surfaces_map = getSurfaces(success_model, selection_model, value_success_offensive_model, value_success_defensive_model, value_fail_offensive_model, value_fail_defensive_model, game_id)
+    freeze_frame = pd.read_parquet(f"{dataPath}/x_freeze_frame_360.parquet")
+    freeze_frame = freeze_frame.loc[freeze_frame.index.get_level_values(0) == game_id]
+    freeze_frame[["original_event", "frames_from_event", "model_outputs"]] = freeze_frame.apply(lambda row: getAllPlayerResults(row, surfaces_map), axis = 1)
+    return freeze_frame
 
 
 def getEvaluationCriterions(row):
@@ -76,6 +89,18 @@ def getEvaluationCriterions(row):
         player["evaluation_criterion"] = player["expected_utility"] - sum(player["selection_probability"] * player["expected_utility"])
         output.append(player)
     return output
+def getSurfaces(success_model, selection_model, value_success_offensive_model, value_success_defensive_model, value_fail_offensive_model, value_fail_defensive_model, game_id = None):
+    """
+    Generates surfaces for all models
+    """
+    surfaces_map = {}
+    surfaces_map["selection"] = selection_model.predict_surface(dataset_test,game_id = game_id)
+    surfaces_map["success"] = success_model.predict_surface(dataset_test,game_id = game_id)
+    surfaces_map["value_success_offensive"] = value_success_offensive_model.predict_surface(dataset_test,game_id = game_id)
+    surfaces_map["value_success_defensive"] = value_success_defensive_model.predict_surface(dataset_test,game_id = game_id)
+    surfaces_map["value_fail_offensive"] = value_fail_offensive_model.predict_surface(dataset_test,game_id = game_id)
+    surfaces_map["value_fail_defensive"] = value_fail_defensive_model.predict_surface(dataset_test,game_id = game_id)
+    return surfaces_map
 def main():
     surfaces_map = {}
     dataPath = "../../../../rdf/sp161/shared/soccer-decision-making/Hawkeye/Hawkeye_Features/sequences_oneSec_trimmed"
@@ -85,13 +110,13 @@ def main():
     #potential worries about memory issues
     selection_model = pass_selection_speeds.SoccerMapComponent(
     model=mlflow.pytorch.load_model(
-        'runs:/0e64f9978dd04e7cb38602143178d8ce/model', map_location = 'cpu'
+        'runs:/3c974bbccb0e40b8a8eeab8e91ff9821/model', map_location = 'cpu'
     )
     )
 
     success_model = pass_success_speeds.SoccerMapComponent(
     model=mlflow.pytorch.load_model(
-        'runs:/x/model', map_location = 'cpu'
+        'runs:/cc52081bd296451189f8ca3fb9cbbee0/model', map_location = 'cpu'
     )
     )
     value_success_offensive_model = pass_value_speeds.SoccerMapComponent(
@@ -117,14 +142,12 @@ def main():
         'runs:/x/model', map_location = 'cpu'
     ), offensive = False
     )
-
-    surfaces_map["selection"] = selection_model.predict_surface(dataset_test, db = None)
-    surfaces_map["success"] = success_model.predict_surface(dataset_test, db = None)
-    surfaces_map["value_success_offensive"] = value_success_offensive_model.predict_surface(dataset_test, db = None)
-    surfaces_map["value_success_defensive"] = value_success_defensive_model.predict_surface(dataset_test, db = None)
-    surfaces_map["value_fail_offensive"] = value_fail_offensive_model_wSpeeds.predict_surface(dataset_test, db = None)
-    surfaces_map["value_fail_defensive"] = value_fail_defensive_model.predict_surface(dataset_test, db = None)
-    freezeFrame[["original_event", "frames_from_event", "model_outputs"]] = freezeFrame.apply(lambda row: getAllPlayerResults(row, surfaces_map), axis = 1)
+    dfs = []
+    game_ids = freezeFrame.index.get_level_values(0).unique()
+    for game_id in game_ids:
+        freezeFrame = getGameResults(game_id, success_model, selection_model, value_success_offensive_model, value_success_defensive_model, value_fail_offensive_model, value_fail_defensive_model)
+        dfs.append(freezeFrame)
+    freezeFrame = pd.concat(dfs)
     freezeFrame.to_csv(f"{outPath}/allModelOutputs.csv")
     all_models = list(surfaces_map.keys())
     eventResults = concatResults(freezeFrame, all_models)

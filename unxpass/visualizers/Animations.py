@@ -5,7 +5,7 @@ from IPython.display import HTML
 from matplotlib.animation import FuncAnimation
 import unxpass.load_xml
 import pandas as pd
-from unxpass.visualizers import playVisualizers
+from unxpass.visualizers import plotPlays
 def next_different_value(series):
     """
     Gets next different value in a series.
@@ -44,7 +44,7 @@ def get_animation_from_raw(event_id, framerate, events, tracking, custom_frames 
     actor_scatter = pitch.scatter([], [], c="w", ec="k", s=20, ax=ax)
     def update(frame_num):
 
-        teammate, opponent, actor = get_player_locations_byframe(frame_num)
+        teammate, opponent, actor = get_player_locations_byframe(frame_num, event_id, events, tracking)
         
         opponent_scatter.set_offsets(np.c_[opponent.x, opponent.y])
         teammate_scatter.set_offsets(np.c_[teammate.x, teammate.y])
@@ -74,7 +74,7 @@ def get_player_locations_byframe(frame_num, event_id, events, tracking):
     teammate = tracking_frame[tracking_frame["TeamId"] == team].rename(columns = {"X":"x", "Y":"y"})[["x","y"]]
     teammate["x"] = teammate["x"].str.replace(",", ".").astype(float) + 52.5
     teammate["y"] = teammate["y"].str.replace(",", ".").astype(float) + 34
-    opponent = tracking_frame[tracking_frame["TeamId"] != team].rename(columns = {"X":"x", "Y":"y"})[["x","y"]]
+    opponent = tracking_frame[(tracking_frame["TeamId"] != team) & (tracking_frame['TeamId'] != 'BALL')].rename(columns = {"X":"x", "Y":"y"})[["x","y"]]
     opponent["x"] = opponent["x"].str.replace(",", ".").astype(float) + 52.5
     opponent["y"] = opponent["y"].str.replace(",", ".").astype(float) + 34
     actor = tracking_frame[tracking_frame["TeamId"] == "BALL"].rename(columns = {"X":"x", "Y":"y"})[["x","y"]]
@@ -144,3 +144,56 @@ def animate_actions(db, game_id, action_ids, surfaces=None, interval=500, show =
 def get_action_ids(uuid, game_id):
     test = db.actions(game_id = game_id)
     return test[test['original_event_id'].fillna('').str.contains(uuid)].index.get_level_values('action_id').tolist()[1:]
+
+
+def animate_surfaces(freeze_frame_df, start_df, speed_df, action_tuples, 
+                               surfaces=None, surface_kwargs=None, log=False, interval=250, title=None, playerOnly = False, modelType = None):
+    """
+    Creates an animation of player coordinates and surfaces for a sequence of actions.
+    
+    Parameters:
+        freeze_frame_df: DataFrame containing freeze frame data
+        start_df: DataFrame with starting ball positions
+        speed_df: (unused but kept for compatibility)
+        action_tuples: List of (index0, index1) tuples identifying each frame to plot
+        surfaces: Optional 2D list of surface arrays
+        surface_kwargs: Arguments to pass to imshow (e.g., cmap, vmin/vmax)
+        log: Whether to apply np.log to surface
+        interval: Time in ms between frames
+        title_prefix: Prefix for subplot title
+    """
+    fig, ax = plt.subplots(figsize=(10, 7))
+    pitch = mplsoccer.pitch.Pitch(pitch_type='custom',
+                                  half=False,
+                                  pitch_length=105,
+                                  pitch_width=68,
+                                  goal_type='box',
+                                  axis=True)
+    pitch.draw(ax=ax)
+
+    def update(frame):
+        ax.clear()
+        action_tuple = action_tuples[frame]
+        plotPlays.visualize_parquet_animation(
+            freeze_frame_df,
+            start_df,
+            speed_df,
+            action_tuple,
+            title=f"{title} | {frame}",
+            surfaces=surfaces,
+            surface_kwargs=surface_kwargs,
+            ax=ax,
+            log=log,
+            playerOnly=playerOnly,
+            modelType=modelType
+        )
+
+    anim = FuncAnimation(fig, update, frames=len(action_tuples), interval=interval, repeat=False)
+    plt.close(fig)
+    return anim
+    
+def getSurfaceAnimation(index, game_id, sequence, surfaces, freeze_frame, start, speed, log = False, title = None, numFrames = 75, playerOnly = False, modelType = None):
+    play_surfaces = {k:v for k,v in surfaces[game_id].items() if k.split("-")[0] == str(index)}
+    action_tuples = [(game_id, key) for key in play_surfaces.keys()][0:numFrames]
+    animation = animate_surfaces(freeze_frame, start, speed, action_tuples, surfaces = surfaces, surface_kwargs = {"interpolation":"bilinear", "vmin": None, "vmax": None, "cmap": "Greens"}, log = log, title = title, playerOnly = playerOnly, modelType = modelType)
+    return animation

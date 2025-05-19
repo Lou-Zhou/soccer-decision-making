@@ -11,7 +11,7 @@ experiment_name: "pass_value/soccermap_offensive_completed"
 model_cfg:
   _target_: unxpass.components.withSpeeds.pass_value_speeds.PytorchSoccerMapModel
   lr: 1e-6
-
+#target could be 'unxpass.components.withSpeeds.pass_value_speeds_packing.PytorchSoccerMapModel' as well
 train_cfg:
   batch_size: 128
   callbacks:
