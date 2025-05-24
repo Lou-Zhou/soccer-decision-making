@@ -28,17 +28,7 @@ def getFlip(freezeframe, secondary_frame = None):
     if secondary_frame is not None:
         return freezeframe, secondary_frame
     return freezeframe
-def getFlipFromBuli(game_id):
-    """
-    Determines if flip is needed from Bundesliga Data
-    """
-    events = load_xml.load_event(f"../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/raw_data/event_data_all/{game_id}.xml")
-    events[['TeamLeft', 'TeamRight']] = events[['TeamLeft', 'TeamRight']].fillna(method='ffill')
-    #direction of play to right
-    #if team in possession is team left - all good
-    #if team in possession is team right - need to flip
-    return events.loc[events['Team'] == events['TeamRight'], 'EventId']
-def frametodict(group, shouldFlip, ball = False):
+def frametodict(group):
     """
     Converts a group of tracking data into a dictionary with player IDs as keys and their translated positions.
     """
@@ -55,11 +45,7 @@ def frametodict(group, shouldFlip, ball = False):
     tracking['X_translated'] = (tracking['X'] + 105/2)
     tracking['Y_translated'] = 68 - (tracking['Y'] + 34)#features are already in meters, no need to convert
     
-    # Apply flip if necessary - dont think its necessary since features set is already flipped(?)
-    #if shouldFlip:
-    #    noball['X_translated'] = 105 - noball['X_translated']
     
-    # Build the dictionary using itertuples for faster iteration
     locs = {
         row.PersonId: {"X": row.X_translated, "Y": row.Y_translated, "Team": row.TeamId}
         for row in tracking.itertuples(index=False)
@@ -222,13 +208,12 @@ def getOutOfBounds(row, tracking):
         return min(ball_data["N"])
     else:
         return row['RECFRM']
-def getSpeedBuli(game_id, action_id, tracking_groups, eventcsv, border, flips, gks, framesback = 5, framesforward = 5, ball = False, checkBlocked = False):
+def getSpeedBuli(action_id, tracking_groups, eventcsv, border,  gks, framesback = 5, framesforward = 5, ball = False, checkBlocked = False):
     """
     Generates freezeframe and player velocities
     """
     timediff = 0.04 * (framesback + framesforward)
     buli_id = action_id
-    shouldflip = buli_id in flips
     event = eventcsv[eventcsv['EVENT_ID'] == buli_id].iloc[0]
     successful = event['EVALUATION'] in ['successful', 'successfullyComplete']
     event_frame = event['FRAME_NUMBER']
@@ -246,7 +231,7 @@ def getSpeedBuli(game_id, action_id, tracking_groups, eventcsv, border, flips, g
     period_start = int(border["first"][period])
     period_end = int(border["last"][period])
     endFrame = event["RECFRM"]
-    if checkBlocked:
+    if checkBlocked:#checkBlocked ensures that there are atleast 10 frames between the start and end of a pass
         nextTen = event_frame + 10
         blocked = endFrame < nextTen
         endFrame = nextTen
@@ -259,39 +244,37 @@ def getSpeedBuli(game_id, action_id, tracking_groups, eventcsv, border, flips, g
     prior_pos = tracking_groups.get_group(prior_frame_str)
     ballPrior = tracking_groups.get_group(ballPrior)
 
-    event_pos = frametodict(event_pos, shouldflip, ball)
-    prior_pos = frametodict(prior_pos, shouldflip, ball)
-    current_pos = frametodict(current_pos, shouldflip, ball)
-    ballPrior = frametodict(ballPrior, shouldflip, ball)
+    event_pos = frametodict(event_pos)
+    prior_pos = frametodict(prior_pos)
+    current_pos = frametodict(current_pos)
+    ballPrior = frametodict(ballPrior)
     
     ball_ff = None
     if ball:
         end_pos = tracking_groups.get_group(end_frame_str)
-        end_pos = frametodict(end_pos, shouldflip, ball)["DFL-OBJ-0000XT"]
+        end_pos = frametodict(end_pos)["DFL-OBJ-0000XT"]
         event_pos_ball = event_pos["DFL-OBJ-0000XT"]
         prior_pos_ball = ballPrior["DFL-OBJ-0000XT"]
         current_pos_ball = current_pos["DFL-OBJ-0000XT"]
         x_velo = (event_pos_ball["X"] - prior_pos_ball["X"]) / timediff
         y_velo = (event_pos_ball["Y"] - prior_pos_ball["Y"]) / timediff
-        if checkBlocked and blocked and not successful:
+        if checkBlocked and blocked and not successful:#if the ball is blocked and we are looking to remove blocked passes
             end_pos['X'] = -100000#some arbitrary stupid value to check and drop later
             end_pos['Y'] = -100000
         ball_ff = {
             "start_x": current_pos_ball["X"],
             "start_y": current_pos_ball["Y"],
             "speed_x": x_velo,
-            "speed_y": y_velo,
+            "speed_y": y_velo,#since we are dropping speed, this does not matter
             "end_x": end_pos["X"],
             "end_y":end_pos["Y"]
         }
-    #return event_pos, prior_pos
     speed_output = []
     for player, pos in event_pos.items():
         if player != "DFL-OBJ-0000XT":
             isTeammate = event_pos[player]["Team"] == team
             isActor = actor == player
             #print(isActor)
-            prior = prior_pos.get(player)
             if player not in prior_pos:
                 x_diff = 0#I think this is redundant
                 y_diff = 0
@@ -308,13 +291,13 @@ def getSpeedBuli(game_id, action_id, tracking_groups, eventcsv, border, flips, g
                 "teammate": isTeammate,
                 "x_velo": x_velo,
                 "y_velo": y_velo,
-                "x": current_pos[player]["X"], #player is in event_pos, but not current_pos?
+                "x": current_pos[player]["X"], 
                 "y": current_pos[player]["Y"],
                 "goalkeeper":isGoalKeeper,
                 "recipient": isRecipient
             }
             speed_output.append(player_dict)
-    return getFlip(speed_output, ball_ff)#ensure that properly flipped
+    return getFlip(speed_output, ball_ff)#ensure that properly flipped, double checking
 def checkDeadBall(row, eventcsv):
     """
     Ensure pass is not from a deadball situation
@@ -332,7 +315,7 @@ def addAllSpeedBuli(games, ball = False, checkBlocked = False):
     Generates speeds and features for all bundesliga data
     Games is a list of game ids
     ball is a boolean to determine if ball speeds and features are included
-    checkBlocked is a boolean to determine if using the 10 frame rule
+    checkBlocked is a boolean to determine whether to check for blocked passes if using the 10 frame rule
     """
     #
     indices = []
@@ -341,7 +324,7 @@ def addAllSpeedBuli(games, ball = False, checkBlocked = False):
         eventcsv = load_xml.load_csv_event(f"../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/raw_data/KPI_Merged_all/KPI_MGD_{game_id}.csv")
         for idx, row in tqdm(eventcsv.iterrows(), leave = False):
             action_id = row['EVENT_ID']
-            if checkDeadBall(row, eventcsv) == -1:#ensure not a deadball
+            if checkDeadBall(row, eventcsv) == -1:#ensure not a deadball situation
                 continue
             indices.append((game_id, action_id))
     index = pd.MultiIndex.from_tuples(indices, names=['game_id', 'action_id'])
@@ -364,14 +347,12 @@ def addAllSpeedBuli(games, ball = False, checkBlocked = False):
             gks =  lineups[lineups['PlayingPosition'] == "TW"]["PersonId"]
             #none of these games should go to extra time
             period = trackingdf["GameSection"].unique()[0]
-            test = trackingdf[trackingdf["GameSection"] == period]["N"]
             for period in trackingdf["GameSection"].unique():#probably can be optimized by a groupBy
                 first_frame[period] = trackingdf[trackingdf["GameSection"] == period]["N"].astype(int).min()
                 last_frame[period] = trackingdf[trackingdf["GameSection"] == period]["N"].astype(int).max()
             border = {"first":first_frame, "last":last_frame}
             tracking_groups = trackingdf.groupby('N')
             #game_mask = skeleton.index.get_level_values(0) == game_id
-            flips = getFlipFromBuli(game_id)
         except Exception as e:
             print(f"Error processing game {game_id}, {traceback.format_exc()}")
         #with tqdm(desc="Processing", leave = False) as pbar:
@@ -382,7 +363,7 @@ def addAllSpeedBuli(games, ball = False, checkBlocked = False):
                 continue
             try:
                 if ball:
-                    all_dfs = getSpeedBuli(game_id, action_id, tracking_groups, eventcsv, border = border, flips = flips, gks = gks, ball = True, checkBlocked = checkBlocked)
+                    all_dfs = getSpeedBuli( action_id, tracking_groups, eventcsv, border = border,gks = gks, ball = True, checkBlocked = checkBlocked)
                     speed_dict = all_dfs[0]
                     ball_dict = all_dfs[1]
                     ball_start.at[(game_id, action_id), "start_x_a0"] = ball_dict["start_x"]
@@ -393,7 +374,7 @@ def addAllSpeedBuli(games, ball = False, checkBlocked = False):
                     ball_end.at[(game_id, action_id), "end_y_a0"] = ball_dict["end_y"]
                     
                 else:
-                    speed_dict = getSpeedBuli(game_id, action_id, tracking_groups, eventcsv, border = border, flips = flips, gks = gks, checkBlocked = checkBlocked)
+                    speed_dict = getSpeedBuli(game_id, action_id, tracking_groups, eventcsv, border = border, gks = gks, checkBlocked = checkBlocked)
             except Exception as e:
                 print(f"Error processing game {game_id}, action {action_id}: {traceback.format_exc()}")
                 speed_dict = [{"error":None}]
@@ -402,10 +383,11 @@ def addAllSpeedBuli(games, ball = False, checkBlocked = False):
     if ball:
         return player_speeds, ball_speeds, ball_start, ball_end
     return player_speeds
-def getBuliLabels(games, output_dir, framesFrom = 10, xgType = "csv"):
+def getBuliLabels(games, output_dir, framesFrom = 10, xgType = "xml"):
     """
     Generates labels for training from bundesliga data
-    framesFrom describes how far into the future to look forshots
+    framesFrom describes how far into the future to look for shots
+    xgType - since the xG from the xml and csv files are different, determine which one to use
     """
     indices = []
     print("Generating Indices")
@@ -442,7 +424,7 @@ def getBuliLabels(games, output_dir, framesFrom = 10, xgType = "csv"):
             action_id = row['EVENT_ID']
             if checkDeadBall(row, eventcsv) == -1:
                 continue
-            feats = getFeatsPlay(idx, row, kickoffFrames, framesFrom, eventcsv, xgType = xgType)
+            feats = getFeatsPlay(idx, row, kickoffFrames, eventcsv, xgType = xgType)
             feats['success'] = row['EVALUATION'] in ['successfullyComplete', 'successful']
             success.at[(game_id, action_id), "success"] = feats['success']
             scores.at[(game_id, action_id), "scores"] = feats['scores']
@@ -464,9 +446,9 @@ def getNextNFrames(df, start_idx, closest_end, nextActs = 10):
     # Filter all rows in df with those 10 FRAME_NUMBERs
     nextEvents = df[df['FRAME_NUMBER'].isin(next_frames)]
     return nextEvents[nextEvents['FRAME_NUMBER'] < closest_end]
-def getFeatsPlay(idx, row, kickoffFrames, framesFrom, eventcsv, xgType = "csv"):
+def getFeatsPlay(idx, row, kickoffFrames,eventcsv, xgType = "csv"):
     """
-    Generates features for Bundesliga data for each play
+    Generates labels for Bundesliga data for each play
     """
     shots = ['ShotWoodWork','OtherShot', 'BlockedShot', 'SavedShot', 'SuccessfulShot', 'ShotWide']
     frame = row['FRAME_NUMBER']
@@ -488,21 +470,22 @@ def getFeatsPlay(idx, row, kickoffFrames, framesFrom, eventcsv, xgType = "csv"):
     featuresOutput["concedes_xg"] = 1 - np.prod(1 - defensiveShots[xgCol])
     featuresOutput['concedes'] = 'SuccessfulShot' in defensiveShots['SUBTYPE'].values
     return featuresOutput
-def main(ball):
+def main(ball, checkBlocked):
     #If ball is false - then only freeze frame is created, if not, then all other features are generated
+    #checkBlocked - if True, then sets end location as the ball 10 frames fron the start(or -10000 if ball ends before 10 frames)
     print("Getting Bundesliga Features")
     games = [game_id.split(".")[0] for game_id in os.listdir("../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/raw_data/tracking_csv")]
-    #games = games[:1]
-    feat_path = "../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/features/labels_xmlxG"
-    #if ball:
-    #    dfs = addAllSpeedBuli(games, ball, checkBlocked = True)
-    #    buli_speed = dfs[0]
-    #    dfs[1].to_parquet(f"{feat_path}/x_speed.parquet")
-    #    dfs[2].to_parquet(f"{feat_path}/x_startlocation.parquet")
-    #    dfs[3].to_parquet(f"{feat_path}/x_endlocation.parquet")
-    #else:
-    #    buli_speed = addAllSpeedBuli(games, ball, checkBlocked = True)
-    #buli_speed.to_parquet(f"{feat_path}/x_freeze_frame_360.parquet")
+    games = games[:1]
+    feat_path = "../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/features/features_ogEndLoc_test"
+    if ball:
+       dfs = addAllSpeedBuli(games, ball, checkBlocked = checkBlocked)
+       buli_speed = dfs[0]
+       dfs[1].to_parquet(f"{feat_path}/x_speed.parquet")
+       dfs[2].to_parquet(f"{feat_path}/x_startlocation.parquet")
+       dfs[3].to_parquet(f"{feat_path}/x_endlocation.parquet")
+    else:
+       buli_speed = addAllSpeedBuli(games, ball, checkBlocked = checkBlocked)
+    buli_speed.to_parquet(f"{feat_path}/x_freeze_frame_360.parquet")
     print("Getting Bundesliga Labels")
     getBuliLabels(games, feat_path, xgType = "xml")
-if __name__ == "__main__": main(True)
+if __name__ == "__main__": main(True, False)
