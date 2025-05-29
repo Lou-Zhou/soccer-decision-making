@@ -20,7 +20,7 @@ $ pip install IPython
 ```
 ## Generating Parquet Features
 
-Since data formatted as a directory of parquet files, various python scripts can be used to get these features from tracking and event data for all three data formats for the soccermap models:
+Since data is formatted as a directory of parquet files, various python scripts can be used to get these features from tracking and event data for all three data formats for the soccermap models:
 1. Sportec Data - unxpass/Scripts/featureGenerators/getBuliFeats.py
 2. Hawkeye Data - unxpass/Scripts/featureGenerators/getHawkeyeFeats.py
 3. SkillCorner Data - unxpass/Scripts/featureGenerators/getSkillCornerFeatures.py
