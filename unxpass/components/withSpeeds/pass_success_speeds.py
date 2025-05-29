@@ -49,30 +49,6 @@ class PassSuccessComponent(UnxpassComponent):
         }
 
 
-class NaiveBaselineComponent(UnxPassSkLearnComponent, PassSuccessComponent):
-    """A baseline model that assigns the average pass completion to all passes."""
-
-    def __init__(self):
-        super().__init__(
-            model=DummyClassifier(strategy="prior"),
-            features={"startlocation": ["start_x_a0"]},  # a dummy feature
-            label=["success"],
-        )
-
-
-class XGBoostComponent(PassSuccessComponent, UnxPassXGBoostComponent):
-    """A XGBoost model based on handcrafted features."""
-
-    def __init__(
-        self, model: XGBClassifier, features: Dict[str, List[str]], label: List[str] = ["success"]
-    ):
-        super().__init__(
-            model=model,
-            features=features,
-            label=label,
-        )
-
-
 class PytorchSoccerMapModel(pl.LightningModule):
     """A pass success probability model based on the SoccerMap architecture."""
 

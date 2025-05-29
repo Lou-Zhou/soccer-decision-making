@@ -13,26 +13,27 @@ from unxpass.components.withSpeeds import pass_success_speeds
 from unxpass.components.utils import log_model, load_model
 from unxpass import __main__, utils
 from omegaconf import DictConfig, OmegaConf
+import hydra
 STORES_FP = Path("../stores")
 db_path = "../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/buli_all.sql"
 db = SQLiteDatabase(db_path)
 
-config_fp = "/home/lz80/un-xPass/config/"
+config_fp = "/home/lz80/un-xPass/config/"##/home/lz80/soccer-decision-making/config/
 
 overrides = ["experiment=pass_success/soccermap"]
 cfg = __main__.parse_config(config_path=config_fp, overrides = overrides)
 
-pass_success_model = pass_success_speeds.SoccerMapComponent(model = pass_success_speeds.PytorchSoccerMapModel())
+
 
 train_cfg = OmegaConf.to_object(cfg.get("train_cfg", DictConfig({})))
 utils.instantiate_callbacks(train_cfg)
 utils.instantiate_loggers(train_cfg)
-custom_path = "../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/features/features_filtered"
+custom_path = "../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/features/features_angle"
 dataset_train = partial(PassesDataset, path=custom_path)
 logger.info("Starting training!")
+pass_success_model = hydra.utils.instantiate(cfg["component"], _convert_="partial")
 mlflow.set_experiment(experiment_name="pass_success/soccermap")
 with mlflow.start_run() as run:
-    # Log config
     with tempfile.TemporaryDirectory() as tmpdirname:
         fp = Path(tmpdirname)
         OmegaConf.save(config=cfg, f=fp / "config.yaml")

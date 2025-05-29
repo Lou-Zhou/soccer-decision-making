@@ -2,14 +2,21 @@ This repository is code originally from [un-xPass: Measuring Soccer Player’s C
 
 ## Installation
 
-Getting Started, requiring [Poetry]{https://python-poetry.org/}:
+Getting Started, requiring [Poetry](https://python-poetry.org/):
 
 ```sh
-$ git clone https://github.com/Lou-Zhou/soccer-decision-making.git
-$ cd un-xPass
+$ GNUTLS_CPUID_OVERRIDE=0x1 git clone https://github.com/Lou-Zhou/soccer-decision-making.git #GNUTLS_CPUID_OVERRIDE=0x1 only included due to some errors with cloning / https connections
+$ sudo apt update
+$ sudo apt install pipx
+$ pipx ensurepath
+$ sudo pipx ensurepath --global #install pipx, dependency for poetry
+$ pipx install poetry #installing poetry, dependency for un-x
+$ cd soccer-decision-making
 $ python3 -m venv .venv
 $ source .venv/bin/activate
+$ pip install poetry -U
 $ poetry install
+$ pip install IPython
 ```
 ## Generating Parquet Features
 
@@ -18,7 +25,7 @@ Since data formatted as a directory of parquet files, various python scripts can
 2. Hawkeye Data - unxpass/Scripts/featureGenerators/getHawkeyeFeats.py
 3. SkillCorner Data - unxpass/Scripts/featureGenerators/getSkillCornerFeatures.py
 
-For the Hawkeye features, since we are looking at times surrounding an event as well, model outputs will be specified in a (game_id, action_id-frame_index) way, where frame_index describes the number of frames from the original reception. In addition, editFeatures.py should be run to edit features as needed(e.g. getting only the successful passes for the value model or trimming superfluous frames as there may exist situations where another play happens 1 second after reception)
+For the Hawkeye features, since we are looking at times surrounding an event as well, model outputs will be specified in a (game_id, action_id-frame_index) way, where frame_index describes the number of frames from the original reception. In addition, editFeatures.py should be run to edit features as needed(e.g. getting only the successful passes for the value model)
 
 ## Training Models
 
@@ -42,6 +49,17 @@ Using resultGenerators/getResults.py, we can then generate two csvs:
 
 1. allModelOutputs.csv - describes the model outputs for every frame evaluated in the data
 2. allModelOutputsAggregated.csv - describes the model outputs aggregated for every event in the data
+
+## Visualizing Results
+
+Using the following scripts, you can generate visualizations of both the plays and model outputs:
+
+1. animatePlays.py - animates given sequence of frames from the tracking data
+2. animateSurfaces.py - animates model surfaces over sequences of frames, useful for Hawkeye data
+3. visualizeFeatures.py - generates visualizations of game states from tracking data
+4. visualizeModelOutput.py - generates singular visualizatios of model surface 
+5. plotSpeeds.py - plots the speed of a player over the course of a game
+6. compareFeatures.py - debugging tool to compare one set of features with another.
 
 ## Hyperparameter Tuning
 

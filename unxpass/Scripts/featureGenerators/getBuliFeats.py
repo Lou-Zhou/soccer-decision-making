@@ -355,7 +355,6 @@ def addAllSpeedBuli(games, ball = False, checkBlocked = False):
             #game_mask = skeleton.index.get_level_values(0) == game_id
         except Exception as e:
             print(f"Error processing game {game_id}, {traceback.format_exc()}")
-        #with tqdm(desc="Processing", leave = False) as pbar:
         for idx, row in tqdm(eventcsv.iterrows(), leave = False):
             action_id = row['EVENT_ID']
             game_id = row['MUID']
@@ -422,9 +421,9 @@ def getBuliLabels(games, output_dir, framesFrom = 10, xgType = "xml"):
         eventcsv = eventcsv.reset_index(drop = True)
         for idx, row in tqdm(eventcsv.iterrows()):
             action_id = row['EVENT_ID']
-            if checkDeadBall(row, eventcsv) == -1:
+            if (game_id, action_id) not in indices:
                 continue
-            feats = getFeatsPlay(idx, row, kickoffFrames, eventcsv, xgType = xgType)
+            feats = getFeatsPlay(idx, row, kickoffFrames, eventcsv, xgType = xgType, nextActs = framesFrom)
             feats['success'] = row['EVALUATION'] in ['successfullyComplete', 'successful']
             success.at[(game_id, action_id), "success"] = feats['success']
             scores.at[(game_id, action_id), "scores"] = feats['scores']
@@ -446,7 +445,7 @@ def getNextNFrames(df, start_idx, closest_end, nextActs = 10):
     # Filter all rows in df with those 10 FRAME_NUMBERs
     nextEvents = df[df['FRAME_NUMBER'].isin(next_frames)]
     return nextEvents[nextEvents['FRAME_NUMBER'] < closest_end]
-def getFeatsPlay(idx, row, kickoffFrames,eventcsv, xgType = "csv"):
+def getFeatsPlay(idx, row, kickoffFrames,eventcsv, xgType = "csv", nextActs = 10):
     """
     Generates labels for Bundesliga data for each play
     """
@@ -456,7 +455,7 @@ def getFeatsPlay(idx, row, kickoffFrames,eventcsv, xgType = "csv"):
     greater_values = [kickoffFrame for kickoffFrame in kickoffFrames if kickoffFrame > frame]
     closest_end = min(greater_values) if len(greater_values) > 0 else None#get smallest kickoffFrame larger
     team = row['CUID1']
-    nextFrames = getNextNFrames(eventcsv, idx, closest_end)
+    nextFrames = getNextNFrames(eventcsv, idx, closest_end, nextActs = nextActs)
     shots = nextFrames[~pd.isna(nextFrames['xG'])].copy()
     if len(shots) == 0:
         return featuresOutput
@@ -471,21 +470,21 @@ def getFeatsPlay(idx, row, kickoffFrames,eventcsv, xgType = "csv"):
     featuresOutput['concedes'] = 'SuccessfulShot' in defensiveShots['SUBTYPE'].values
     return featuresOutput
 def main(ball, checkBlocked):
-    #If ball is false - then only freeze frame is created, if not, then all other features are generated
-    #checkBlocked - if True, then sets end location as the ball 10 frames fron the start(or -10000 if ball ends before 10 frames)
-    print("Getting Bundesliga Features")
+    # #If ball is false - then only freeze frame is created, if not, then all other features are generated
+    # #checkBlocked - if True, then sets end location as the ball 10 frames fron the start(or -10000 if ball ends before 10 frames)
+    # #print("Getting Bundesliga Features")
     games = [game_id.split(".")[0] for game_id in os.listdir("../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/raw_data/tracking_csv")]
-    games = games[:1]
-    feat_path = "../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/features/features_ogEndLoc_test"
-    if ball:
-       dfs = addAllSpeedBuli(games, ball, checkBlocked = checkBlocked)
-       buli_speed = dfs[0]
-       dfs[1].to_parquet(f"{feat_path}/x_speed.parquet")
-       dfs[2].to_parquet(f"{feat_path}/x_startlocation.parquet")
-       dfs[3].to_parquet(f"{feat_path}/x_endlocation.parquet")
-    else:
-       buli_speed = addAllSpeedBuli(games, ball, checkBlocked = checkBlocked)
-    buli_speed.to_parquet(f"{feat_path}/x_freeze_frame_360.parquet")
-    print("Getting Bundesliga Labels")
+    # #games = games[:1]
+    feat_path = "../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/features/features_4sec"
+    # if ball:
+    #   dfs = addAllSpeedBuli(games, ball, checkBlocked = checkBlocked)
+    #   buli_speed = dfs[0]
+    #   dfs[1].to_parquet(f"{feat_path}/x_speed.parquet")
+    #   dfs[2].to_parquet(f"{feat_path}/x_startlocation.parquet")
+    #   dfs[3].to_parquet(f"{feat_path}/x_endlocation.parquet")
+    # else:
+    #   buli_speed = addAllSpeedBuli(games, ball, checkBlocked = checkBlocked)
+    # buli_speed.to_parquet(f"{feat_path}/x_freeze_frame_360.parquet")
+    # print("Getting Bundesliga Labels")
     getBuliLabels(games, feat_path, xgType = "xml")
-if __name__ == "__main__": main(True, False)
+if __name__ == "__main__": main(True, True)

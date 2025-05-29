@@ -4,6 +4,30 @@ import pandas as pd
 import numpy as np
 import math
 from tqdm import tqdm
+import numpy as np
+
+def angle_between_vectors(P, A, B):
+    """
+    Gets angles between vectors AP and AB
+    """
+    P = np.array(P)
+    A = np.array(A)
+    B = np.array(B)
+
+    vec_AP = P - A
+    vec_AB = B - A
+
+    dot_product = np.dot(vec_AP, vec_AB)
+    norm_AP = np.linalg.norm(vec_AP)
+    norm_AB = np.linalg.norm(vec_AB)
+
+    cos_angle = np.clip(dot_product / (norm_AP * norm_AB), -1.0, 1.0)
+
+    angle_rad = np.arccos(cos_angle)
+    return angle_rad
+
+
+
 def point_to_ray_distance(P, A, B):
     P = np.array(P)
     A = np.array(A)
@@ -66,7 +90,7 @@ def point_to_segment_distance(P, A, B):
     closest_point = A + t_clamped * AB
     distance = np.linalg.norm(P - closest_point)
     return distance, closest_point
-def getClosestPlayer_vec(row, freeze_frame, start, end):
+def getClosestPlayer_vec(row, freeze_frame, start, end, method = angle_between_vectors):
     """
     For a play, determine the closest player to the ray formed by start and end
     """
@@ -83,36 +107,26 @@ def getClosestPlayer_vec(row, freeze_frame, start, end):
     end_t = end.loc[idx]
     end_tuple = end_t[["end_x_a0", "end_y_a0"]].values
     locs = {player['player'] : [player['x'], player['y']] for player in ff if player['teammate'] == True and player['actor'] == False}
-    distances = {player: point_to_ray_distance(locs[player], start_tuple, end_tuple) for player in locs}
+    distances = {player: method(locs[player], start_tuple, end_tuple) for player in locs}
     closest_player = min(distances, key=distances.get)
     return locs[closest_player]
 
-def checkRayDirection(P, A, B):
+def checkDirections(start, og_end, recipient_end):
     """
-    Checks direction of the ray, ensures that closest player is in that same direction
+    Vectorized version of checking if the direction of the recipient end point is in the general direction of the pass.
     """
-    P = np.array(P)
-    A = np.array(A)
-    B = np.array(B)
+
+    A = start.loc[:, ["start_x_a0", "start_y_a0"]].to_numpy()
+    B = og_end.loc[:, ["end_x_a0", "end_y_a0"]].to_numpy()
+    P = recipient_end.loc[:, ["end_x_a0", "end_y_a0"]].to_numpy()
     
     AB = B - A
     AP = P - A
 
-    dot_product = np.dot(AB, AP)
+    dot_products = np.einsum('ij,ij->i', AB, AP)
+    weird_mask = dot_products <= 0
+    return list(start.index[weird_mask])
 
-    return dot_product > 0
-def checkDirections(start, og_end, recipient_end):
-    """
-    Check if the direction of the pass is in the same general direction of the ray, if not, return the index of the pass
-    """
-    weirdDirect = []
-    for idx in tqdm(recipient_end.index):
-        start_play = start.loc[idx,["start_x_a0", "start_y_a0"]]
-        end_play = og_end.loc[idx,["end_x_a0", "end_y_a0"]]
-        recipient_end_play = recipient_end.loc[idx,["end_x_a0", "end_y_a0"]]
-        if not checkRayDirection(recipient_end_play, start_play, end_play):
-            weirdDirect.append(idx)
-    return weirdDirect
 
 def getClosestPlayer(freeze_frame, start, end):
     idxs = end.index
@@ -127,18 +141,18 @@ def getNoChange(start_df, end_df):
     """
     When using the 10 frames from method, there exist some improper frames where the ball does not move within
     the 10 frames or the ball moves very little. This function checks for those instances and returns the index of those frames.
+    Usually for passes with improperly marked passing frames(i.e. successful passes where the ball does not move for the first 10 frames)
     """
     allLocs = pd.merge(start_df, end_df, left_index = True, right_index = True)
     allLocs['distance'] = np.sqrt((allLocs['end_x_a0'] - allLocs["start_x_a0"]) ** 2 + (allLocs['end_y_a0'] - allLocs["start_y_a0"])**2)
     smallDistance = allLocs[allLocs['distance']  == 0]
     return smallDistance.index
-def getOutlierIdx(speed_path):
+def getOutlierIdx(freezeFrames):
     """
     Gets the indices of outlier speeds
     """
-    speeds = pd.read_parquet(speed_path)
-    speeds['numoutlier'] = speeds.apply(lambda x: check_speeds(x['freeze_frame_360_a0']), axis = 1)
-    return speeds[speeds['numoutlier'] > 0].index
+    freezeFrames['numoutlier'] = freezeFrames.apply(lambda x: check_speeds(x['freeze_frame_360_a0']), axis = 1)
+    return freezeFrames[freezeFrames['numoutlier'] > 0].index
 def getSuccessIdx(success):
     return success[success['success']].index
 def check_speeds(frame):
@@ -150,8 +164,7 @@ def check_speeds(frame):
 def getIdxs(dir_path, output_path, idxs, include = False, random_subset = None):
     if not os.path.exists(output_path):
         os.makedirs(output_path)
-    for file in  os.listdir(dir_path):
-        print(f"Editing {file}")
+    for file in tqdm(os.listdir(dir_path)):
         if include:
             parquet = pd.read_parquet(f"{dir_path}/{file}").loc[idxs]
         else:
@@ -200,7 +213,7 @@ def freezeBall(startLoc):
     startLoc = startLoc.groupby('og_action', group_keys=False).apply(lambda g: fillStartLocs(g, "start_x_a0"))
     startLoc = startLoc.groupby('og_action', group_keys=False).apply(lambda g: fillStartLocs(g, "start_y_a0"))
     return startLoc[["start_x_a0", "start_y_a0"]]
-from unxpass.Scripts.visualizationScripts import getAnimations
+from unxpass.Scripts.visualizationScripts import animatePlays
 def main():
     """
     For the Bundesliga Data, feature filtering is as follows:
@@ -213,35 +226,43 @@ def main():
 
     getOutlierIdx() - removing frames where a player goes more than 11 m/s
 
-    getClosestPlayer() - replacing end locations with the closest player to the ray created by the start and end locations
+    getClosestPlayer() - replacing end locations with the minimum angle for the player created by the start and end locations
     
     checkDirections() - ensure that ray is in the same direction as the closest player
 
     getSuccess() - for value models, getting successful and unsuccessful passes
 
-    For Hawkeye Data, feature filtering just uses freezeBall to freeze the ball to time of reception as 
-    needed.
+    For Hawkeye Data, freezeBall to freeze the ball to time of reception as needed.
 
     """
-    input_dir = "../../../../rdf/sp161/shared/soccer-decision-making/Hawkeye/Hawkeye_Features/sequences_threeSec"
-    output_dir = "../../../../rdf/sp161/shared/soccer-decision-making/Hawkeye/Hawkeye_Features/sequences_threeSec"
+    input_dir = "../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/features/features_angle"
+    output_dir = "../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/features/features_failed"
     startloc = pd.read_parquet(f"{input_dir}/x_startlocation.parquet")
-    
-    startloc = freezeBall(startloc)
-    startloc.to_parquet(f"{output_dir}/x_startlocation.parquet")
+    endloc = pd.read_parquet(f"{input_dir}/x_endlocation.parquet")
+    freezeframe = pd.read_parquet(f"{input_dir}/x_freeze_frame_360.parquet")
+    success = pd.read_parquet(f"{input_dir}/y_success.parquet")
 
-    #impossibleIdx = sanityCheck(startloc, endloc) #gets indices that are not physically possible(originating from data errors)
-    #outlieridx = getOutlierIdx(f"{input_dir}/x_freeze_frame_360.parquet") #outlier idx based on speed
-    #noChange = getNoChange(startloc, endloc) #sanity checker to ensure that there is a change in start and end locs
-    #allidxs = combineIdx(outlieridx, noChange)
-    #allidxs = combineIdx(allidxs, impossibleIdx)
+    # Freezing the ball for Hawkeye Use
+    #startloc = freezeBall(startloc)
+    #startloc.to_parquet(f"{output_dir}/x_startlocation.parquet")
 
-    #getIdxs(input_dir, output_dir, idxs = allidxs, include = False)
-    #success = pd.read_parquet(f"{output_dir}/y_success.parquet")
-    #successIdx = getSuccessIdx(success)
-    #getIdxs(output_dir, output_dir, idxs = successIdx, include = False)
 
-    #replace end locations
+    # Getting only successful / failed passes:
+    successIdx = getSuccessIdx(success)
+    getIdxs(input_dir, output_dir, idxs = successIdx, include = False)
+    #allidxs = combineIdx(successIdx, allidxs)
+
+
+    # #Bundesliga Feature Filtering 
+    # impossibleIdx = sanityCheck(startloc, endloc) #gets indices that are not physically possible(originating from data errors)
+    # outlieridx = getOutlierIdx(freezeframe) #outlier idx based on speed
+    # noChange = getNoChange(startloc, endloc) #sanity checker to ensure that there is a change in start and end locs
+    # allidxs = combineIdx(outlieridx, impossibleIdx)
+    # allidxs = combineIdx(allidxs, noChange)
+    # getIdxs(input_dir, output_dir, idxs = allidxs, include = False)
+
+
+    # # Mapping End Location
     # print("Replacing End Locations...")
     # endlocs = pd.read_parquet(f"{output_dir}/x_endlocation.parquet")
     # new_ff = pd.read_parquet(f"{output_dir}/x_freeze_frame_360.parquet")
