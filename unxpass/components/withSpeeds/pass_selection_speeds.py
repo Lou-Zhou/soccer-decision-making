@@ -51,7 +51,7 @@ class PytorchSoccerMapModel(pl.LightningModule):
         # it also allows to access params with 'self.hparams' attribute
         self.save_hyperparameters()
 
-        self.model = SoccerMap(in_channels=14)
+        self.model = SoccerMap(in_channels=12)
         self.softmax = nn.Softmax(2)
 
         # loss function
@@ -154,7 +154,7 @@ class ToSoccerMapTensor:
         players_def_coo = frame.loc[~frame.teammate, ["x", "y"]].values.reshape(-1, 2)
 
         # Output
-        matrix = np.zeros((14, self.y_bins, self.x_bins))#3D, 14 x 68 x 104
+        matrix = np.zeros((12, self.y_bins, self.x_bins))#3D, 14 x 68 x 104
 
         # CH 1: Locations of attacking team
         x_bin_att, y_bin_att = self._get_cell_indexes(
@@ -199,14 +199,10 @@ class ToSoccerMapTensor:
             np.arctan((y0_goal - coords[:, :, 1]) / (x0_goal - coords[:, :, 0]))
         )
 
-        # CH 8-9: Ball speed 
-        matrix[7, y0_ball, x0_ball] = speed_x
-        matrix[8, y0_ball, x0_ball] = speed_y
-        # CH 10: Distance to nearest opponent - need to get location of recipient
-        # matrix[9, :, :] = np.min([
-        #     np.sqrt((xx - x_bin_def) ** 2 + (yy - y_bin_def) ** 2)
-        #     for x_bin_def, y_bin_def in zip(x_bin_def, y_bin_def)
-        # ], axis=0)
+        # CH 8-9: Ball speed - taken out
+        #matrix[7, y0_ball, x0_ball] = speed_x
+        #matrix[8, y0_ball, x0_ball] = speed_y
+
         # Get velocities
         players_att_vx = frame.loc[~frame.actor & frame.teammate, "x_velo"].values  # shape: (n_att_players,)
         players_att_vy = frame.loc[~frame.actor & frame.teammate, "y_velo"].values  # shape: (n_att_players,)
@@ -214,13 +210,13 @@ class ToSoccerMapTensor:
         # Similarly for defending players, using the correct condition (assuming defenders are non-teammates)
         players_def_vx = frame.loc[~frame.teammate, "x_velo"].values  # shape: (n_def_players,)
         players_def_vy = frame.loc[~frame.teammate, "y_velo"].values 
-        # Channels 10 and 11, attacking team velocities 
-        matrix[10, y_bin_att, x_bin_att] = players_att_vx
-        matrix[11, y_bin_att, x_bin_att] = players_att_vy
+        # Channels 8 and 9, attacking team velocities 
+        matrix[7, y_bin_att, x_bin_att] = players_att_vx
+        matrix[8, y_bin_att, x_bin_att] = players_att_vy
 
-        # Channel 12 & 13: Defending player velocities (x and y)
-        matrix[12, y_bin_def, x_bin_def] = players_def_vx
-        matrix[13, y_bin_def, x_bin_def] = players_def_vy
+        # Channel 10 & 11: Defending player velocities (x and y)
+        matrix[9, y_bin_def, x_bin_def] = players_def_vx
+        matrix[10, y_bin_def, x_bin_def] = players_def_vy
         mask = np.zeros((1, self.y_bins, self.x_bins))
         end_ball_coo = np.array([[end_x, end_y]])
         if np.isnan(end_ball_coo).any():
