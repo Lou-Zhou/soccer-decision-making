@@ -40,7 +40,7 @@ with mlflow.start_run() as run:
         OmegaConf.save(config=cfg, f=fp / "config.yaml")
         mlflow.log_artifact(str(fp / "config.yaml"))
     pass_selection_model.train(dataset_train, optimized_metric=cfg.get("optimized_metric"), **train_cfg)
-    log_model(pass_selection_model.model, "component")
+    mlflow.pytorch.log_model(pass_selection_model.model, "component")
     run_id = run.info.run_id
     print(f"Pass Selection Model saved with run_id: {run_id}")
 logger.info("✅ Finished training. Model saved with ID %s", run.info.run_id)

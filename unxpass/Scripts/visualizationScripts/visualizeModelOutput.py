@@ -20,10 +20,10 @@ from unxpass.visualizers import plotPlays
 from matplotlib.backends.backend_pdf import PdfPages
 
 #wspeed ce9da14c0e88476aaab3cac209b7659d
-model_pass_wSpeeds = pass_value_speeds.SoccerMapComponent(
+model_pass_wSpeeds = pass_selection_speeds.SoccerMapComponent(
     model=mlflow.pytorch.load_model(
-        'runs:/5fe2fe3954454ec6be5398a5fb71c433/model', map_location = 'cpu'
-    ), offensive = False, success = False
+        'runs:/c24cafc659dd4600bacfa6472769b5c0/model', map_location = 'cpu'
+    )
 )#2ddca7aa73c946e0a162bf5843b66c66
 #model_checkpoint_path = "/home/lz80/un-xPass/unxpass/Scripts/trainingscripts/lightning_logs/version_94/checkpoints/epoch=24-step=864825.ckpt"
 #loaded_model = pass_value_speeds.PytorchSoccerMapModel.load_from_checkpoint(model_checkpoint_path)
@@ -31,14 +31,14 @@ model_pass_wSpeeds = pass_value_speeds.SoccerMapComponent(
 #59e582d607844c31bb20b58578b90688
 #No C,D: 20e7d3695d7049d0a513922d32b44a11
 
-features_dir = "/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/features/features_filtered"
-#features_dir = "/home/lz80/rdf/sp161/shared/soccer-decision-making/Hawkeye/Hawkeye_Features/sequences"
+#features_dir = "/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/features/features_filtered"
+features_dir = "../../../../rdf/sp161/shared/soccer-decision-making/Hawkeye/Hawkeye_Features/sequences"
 dataset_test = partial(PassesDataset, path=features_dir)
 #sequences = pd.read_csv("../../../../rdf/sp161/shared/soccer-decision-making/steffen/sequence_filtered.csv", delimiter = ";")
-game_id = "DFL-MAT-J03YJD"
-surfaces_wSpeed= model_pass_wSpeeds.predict_surface(dataset_test, db = None, game_id = game_id)
+#game_id = "DFL-MAT-J03YJD"
+surfaces_wSpeed= model_pass_wSpeeds.predict_surface(dataset_test, db = None)
 #surfaces_wSpeed = model_pass_wSpeeds.predict_surface(dataset_test, db = None)
-pdf_filename = "value_test.pdf"
+pdf_filename = "selection_angle.pdf"
 
 freeze_frame = pd.read_parquet(f"{features_dir}/x_freeze_frame_360.parquet")
 speed = pd.read_parquet(f"{features_dir}/x_speed.parquet")
@@ -56,11 +56,11 @@ with PdfPages(pdf_filename) as pdf:
             surface = surfaces_wSpeed[game_id][action_id]
             title = f"Game {game_id}, index {action_id}, max_val {np.amax(surface)}"
             # 
-            fig = plotPlays.visualize_surface(ff_action, start_action, end_action, title = title, surface = surface, surface_kwargs= surface_type, log = False, modelType = "val")
+            fig = plotPlays.visualize_surface(ff_action, start_action, end_action, title = title, surface = surface, surface_kwargs= surface_type, log = False, modelType = "sel")
             #plt.tight_layout(rect=[0, 0.03, 1, 0.95])
             pdf.savefig(fig)
             plt.close(fig)
             count = count + 1
-            if count > 20:
+            if count > 200:
                 break
 

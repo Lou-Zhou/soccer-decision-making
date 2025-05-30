@@ -8,10 +8,10 @@ from unxpass.components.withSpeeds.pass_value_speeds import PytorchSoccerMapMode
 import torch
 import mlflow
 def main():
-    model_checkpoint_path = "/tmp/checkpoints/epoch_021-v1.ckpt"
-    loaded_model = pass_value_speeds.PytorchSoccerMapModel.load_from_checkpoint(model_checkpoint_path)
+    model_checkpoint_path = "/tmp/checkpoints/epoch_028-v2.ckpt"
+    loaded_model = pass_selection_speeds.PytorchSoccerMapModel.load_from_checkpoint(model_checkpoint_path)
 
-    model = SoccerMapComponent(model=loaded_model, offensive = False, success = False)
+    model = SoccerMapComponent(model=loaded_model)
     mlflow.set_experiment("pass_value/soccermap")
     with mlflow.start_run() as run:
         # Log the model
