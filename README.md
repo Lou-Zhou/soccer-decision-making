@@ -32,7 +32,7 @@ For the Hawkeye features, since we are looking at times surrounding an event as 
 ```
 source .venv/bin/activate                # load the virtual environment
 cd unxpass/Scripts/trainingscripts/      # scripts need to be run from their directory
-python3 train_soccermap_selection.py    # OR train_soccermap_success.py OR train_soccermap_selection.py
+python3 train_soccermap_selection.py     # OR train_soccermap_success.py OR train_soccermap_selection.py
 ```
 
 The models use the configurations as described in `config/experiment` and can be changed depending on need. These scripts will output both the last trained model (in run_id form) as well as the model with the smallest lost(in checkpoint form). Using unxpass/Scripts/helperScripts/checkpntToModel.py, we can then turn these checkpoints into run_ids so we can standardize model storage. The paths to these checkpoints can be found from the code outputs or in trainingscripts/lightning_logs/version_x/checkpoints.
