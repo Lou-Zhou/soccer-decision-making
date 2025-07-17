@@ -29,9 +29,15 @@ For the Hawkeye features, since we are looking at times surrounding an event as 
 
 ## Training Models
 
-From these features, we can then train the three model components using the following scripts in unxpass/Scripts/trainingscripts. The models use the configurations as described in config/experiment and can be changed depending on need. These scripts will output both the last trained model(in run_id form) as well as the model with the smallest lost(in checkpoint form). Using unxpass/Scripts/helperScripts/checkpntToModel.py, we can then turn these checkpoints into run_ids so we can standardize model storage. The paths to these checkpoints can be found from the code outputs or in trainingscripts/lightning_logs/version_x/checkpoints.
+```
+source .venv/bin/activate                # load the virtual environment
+cd unxpass/Scripts/trainingscripts/      # scripts need to be run from their directory
+python3 train_soccermap_selection.py    # OR train_soccermap_success.py OR train_soccermap_selection.py
+```
 
-For the four value models, it is important to change the experiment name(e.g. "pass_value/soccermap_offensive_completed") so that they match the model as desired.
+The models use the configurations as described in `config/experiment` and can be changed depending on need. These scripts will output both the last trained model (in run_id form) as well as the model with the smallest lost(in checkpoint form). Using unxpass/Scripts/helperScripts/checkpntToModel.py, we can then turn these checkpoints into run_ids so we can standardize model storage. The paths to these checkpoints can be found from the code outputs or in trainingscripts/lightning_logs/version_x/checkpoints.
+
+In `train_soccermap_value`, it is important to change the `experiment` variable (e.g. "pass_value/soccermap_offensive_completed") so that it matches the model desired.
 
 In addition, the paths to the configurations in all these scripts must be set manually as these paths must be absolute.
 
