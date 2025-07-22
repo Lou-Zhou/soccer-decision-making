@@ -35,11 +35,13 @@ cd unxpass/Scripts/trainingscripts/      # scripts need to be run from their dir
 python3 train_soccermap_selection.py     # OR train_soccermap_success.py OR train_soccermap_selection.py
 ```
 
-The models use the configurations as described in `config/experiment` and can be changed depending on need. These scripts will output both the last trained model (in run_id form) as well as the model with the smallest lost(in checkpoint form). Using unxpass/Scripts/helperScripts/checkpntToModel.py, we can then turn these checkpoints into run_ids so we can standardize model storage. The paths to these checkpoints can be found from the code outputs or in trainingscripts/lightning_logs/version_x/checkpoints.
+The config files (for hyperparameters) are, for example, `config/experiment/pass_selection/soccermap.yaml`.
 
-In `train_soccermap_value`, it is important to change the `experiment` variable (e.g. "pass_value/soccermap_offensive_completed") so that it matches the model desired.
+In `train_soccermap_value.py`, it is important to change the `experiment` variable (e.g. "pass_value/soccermap_offensive_completed") so that it matches the model desired.
 
-In addition, the paths to the configurations in all these scripts must be set manually as these paths must be absolute.
+The paths to the configurations in all these scripts must be set manually as these paths must be absolute.
+
+These scripts will output both the last trained model (in run_id form) as well as the model with the smallest lost(in checkpoint form). Using unxpass/Scripts/helperScripts/checkpntToModel.py, we can then turn these checkpoints into run_ids so we can standardize model storage. The paths to these checkpoints can be found from the code outputs or in trainingscripts/lightning_logs/version_x/checkpoints.
 
 ## Visualizing Results
 
