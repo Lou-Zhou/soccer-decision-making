@@ -41,7 +41,7 @@ In `train_soccermap_value`, it is important to change the `experiment` variable 
 
 In addition, the paths to the configurations in all these scripts must be set manually as these paths must be absolute.
 
-## Visualizations
+## Visualizing Results
 
 ```
 source .venv/bin/activate                # load the virtual environment
@@ -50,10 +50,13 @@ python3 visualizeModelOutput.py          # produces selection_angle.pdf in the s
 ```
 
 We can generate visualizations for both the plays and the model results using scripts found in Scripts/visualizationScripts:
-1. getAnimations.py - generates animations for a Bundesliga play
-2. getmodeloutput.py - generates model outputs for play(s)
-3. plotSpeeds.py - plots the speed of a player over the course of a game(used to check speed smoothing values)
-4. visualizeFeatures - plots the game states from the parquet files
+
+1. animatePlays.py - animates given sequence of frames from the tracking data
+2. animateSurfaces.py - animates model surfaces over sequences of frames, useful for Hawkeye data
+3. compareFeatures.py - debugging tool to compare one set of features with another
+4. plotSpeeds.py - plots the speed of a player over the course of a game (used to check speed smoothing values)
+5. visualizeFeatures.py - generates visualizations of game states from tracking data
+6. visualizeModelOutput.py - generates singular visualizatios of model surface 
 
 ## Getting Results
 
@@ -61,17 +64,6 @@ Using resultGenerators/getResults.py, we can then generate two csvs:
 
 1. allModelOutputs.csv - describes the model outputs for every frame evaluated in the data
 2. allModelOutputsAggregated.csv - describes the model outputs aggregated for every event in the data
-
-## Visualizing Results
-
-Using the following scripts, you can generate visualizations of both the plays and model outputs:
-
-1. animatePlays.py - animates given sequence of frames from the tracking data
-2. animateSurfaces.py - animates model surfaces over sequences of frames, useful for Hawkeye data
-3. visualizeFeatures.py - generates visualizations of game states from tracking data
-4. visualizeModelOutput.py - generates singular visualizatios of model surface 
-5. plotSpeeds.py - plots the speed of a player over the course of a game
-6. compareFeatures.py - debugging tool to compare one set of features with another.
 
 ## Hyperparameter Tuning
 
