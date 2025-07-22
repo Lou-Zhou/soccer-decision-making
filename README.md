@@ -43,6 +43,12 @@ In addition, the paths to the configurations in all these scripts must be set ma
 
 ## Visualizations
 
+```
+source .venv/bin/activate                # load the virtual environment
+cd unxpass/Scripts/visualizationScripts/ # script needs to be run from its directory
+python3 visualizeModelOutput.py          # produces selection_angle.pdf in the same directory
+```
+
 We can generate visualizations for both the plays and the model results using scripts found in Scripts/visualizationScripts:
 1. getAnimations.py - generates animations for a Bundesliga play
 2. getmodeloutput.py - generates model outputs for play(s)
