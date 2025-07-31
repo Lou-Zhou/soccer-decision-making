@@ -14,22 +14,28 @@ from unxpass.components.utils import log_model, load_model
 from unxpass import __main__, utils
 from omegaconf import DictConfig, OmegaConf
 import hydra
-STORES_FP = Path("../stores")
-db_path = "../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/buli_all.sql"
-db = SQLiteDatabase(db_path)
+import configparser
 
-config_fp = "/home/lz80/un-xPass/config/"#this must be an absolute path, so should be changed depending on machine
-##/home/lz80/soccer-decision-making/config/
+# Handle file paths ----
+
+config = configparser.ConfigParser()
+config.read('soccer-decision-making.ini')
+path_data = config['path']['data']
+path_repo = config['path']['repo']
+path_db = path_data + "/Bundesliga/buli_all.sql"
+path_config = path_repo + "/config/"
+STORES_FP = Path("../stores")
+
+
+db = SQLiteDatabase(path_db)
 
 overrides = ["experiment=pass_selection/soccermap"]
-cfg = __main__.parse_config(config_path=config_fp, overrides = overrides)
-
-
-
+cfg = __main__.parse_config(config_path=path_config, overrides = overrides)
 train_cfg = OmegaConf.to_object(cfg.get("train_cfg", DictConfig({})))
 utils.instantiate_callbacks(train_cfg)
 utils.instantiate_loggers(train_cfg)
-custom_path = "../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/features/features_angle"
+
+custom_path = path_data + "/Bundesliga/features/features_angle"
 dataset_train = partial(PassesDataset, path=custom_path)
 logger.info("Starting training!")
 pass_selection_model = hydra.utils.instantiate(cfg["component"], _convert_="partial")

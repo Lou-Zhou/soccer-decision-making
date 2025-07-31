@@ -4,14 +4,22 @@ This repository is code originally from [un-xPass: Measuring Soccer Player’s C
 
 Getting Started, requiring [Poetry](https://python-poetry.org/):
 
-```sd
+```sh
 GNUTLS_CPUID_OVERRIDE=0x1 git clone https://github.com/Lou-Zhou/soccer-decision-making.git #GNUTLS_CPUID_OVERRIDE=0x1 only included due to some errors with cloning / https connections
 sudo apt update
 sudo apt install pipx
 pipx ensurepath
 sudo pipx ensurepath --global #install pipx, dependency for poetry
 pipx install poetry #installing poetry, dependency for un-x
+python3 -m venv .venv
 cd soccer-decision-making
+```
+
+Additionally, create a file called soccer-decision-making.ini in your working directory, with the following contents:
+```
+[path]
+data = {absolute path to RDF data folder, e.g. /home/sp161/rdf/sp161/shared/soccer-decision-making}
+repo = {absolute path to code repository, e.g. /home/sp161/soccer-decision-making}
 ```
 
 ### Setup
@@ -19,11 +27,7 @@ cd soccer-decision-making
 You need to run the following lines every time to set up the virtual environment with the appropriate modules installed.
 
 ```sh
-python3 -m venv .venv
 source .venv/bin/activate
-pip install poetry -U
-poetry install
-pip install IPython
 ```
 
 ## Generating Parquet Features
