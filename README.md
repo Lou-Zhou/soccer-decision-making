@@ -4,20 +4,28 @@ This repository is code originally from [un-xPass: Measuring Soccer Player’s C
 
 Getting Started, requiring [Poetry](https://python-poetry.org/):
 
-```sh
-$ GNUTLS_CPUID_OVERRIDE=0x1 git clone https://github.com/Lou-Zhou/soccer-decision-making.git #GNUTLS_CPUID_OVERRIDE=0x1 only included due to some errors with cloning / https connections
-$ sudo apt update
-$ sudo apt install pipx
-$ pipx ensurepath
-$ sudo pipx ensurepath --global #install pipx, dependency for poetry
-$ pipx install poetry #installing poetry, dependency for un-x
-$ cd soccer-decision-making
-$ python3 -m venv .venv
-$ source .venv/bin/activate
-$ pip install poetry -U
-$ poetry install
-$ pip install IPython
+```sd
+GNUTLS_CPUID_OVERRIDE=0x1 git clone https://github.com/Lou-Zhou/soccer-decision-making.git #GNUTLS_CPUID_OVERRIDE=0x1 only included due to some errors with cloning / https connections
+sudo apt update
+sudo apt install pipx
+pipx ensurepath
+sudo pipx ensurepath --global #install pipx, dependency for poetry
+pipx install poetry #installing poetry, dependency for un-x
+cd soccer-decision-making
 ```
+
+### Setup
+
+You need to run the following lines every time to set up the virtual environment with the appropriate modules installed.
+
+```sh
+python3 -m venv .venv
+source .venv/bin/activate
+pip install poetry -U
+poetry install
+pip install IPython
+```
+
 ## Generating Parquet Features
 
 Since data is formatted as a directory of parquet files, various python scripts can be used to get these features from tracking and event data for all three data formats for the soccermap models:
@@ -29,7 +37,7 @@ For the Hawkeye features, since we are looking at times surrounding an event as 
 
 ## Training Models
 
-```
+```sh
 source .venv/bin/activate                # load the virtual environment
 cd unxpass/Scripts/trainingscripts/      # scripts need to be run from their directory
 python3 train_soccermap_selection.py     # OR train_soccermap_success.py OR train_soccermap_selection.py
@@ -45,7 +53,7 @@ These scripts will output both the last trained model (in run_id form) as well a
 
 ## Visualizing Results
 
-```
+```sh
 source .venv/bin/activate                # load the virtual environment
 cd unxpass/Scripts/visualizationScripts/ # script needs to be run from its directory
 python3 visualizeModelOutput.py          # produces selection_angle.pdf in the same directory
@@ -71,7 +79,7 @@ Using resultGenerators/getResults.py, we can then generate two csvs:
 
 Hyperparameter tuning can be done using run_experiment.py with the following command:
 
-```
+```sh
 python3 run_experiment.py \
   experiment="experiment_name" \
   hparams_search="hparam_method" 
