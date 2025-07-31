@@ -42,9 +42,7 @@ For the Hawkeye features, since we are looking at times surrounding an event as 
 ## Training Models
 
 ```sh
-source .venv/bin/activate                # load the virtual environment
-cd unxpass/Scripts/trainingscripts/      # scripts need to be run from their directory
-python3 train_soccermap_selection.py     # OR train_soccermap_success.py OR train_soccermap_selection.py
+python3 scripts/training/train_soccermap_selection.py     # OR *_success.py OR *_selection.py
 ```
 
 The config files (for hyperparameters) are, for example, `config/experiment/pass_selection/soccermap.yaml`.
@@ -58,9 +56,7 @@ These scripts will output both the last trained model (in run_id form) as well a
 ## Visualizing Results
 
 ```sh
-source .venv/bin/activate                # load the virtual environment
-cd unxpass/Scripts/visualizationScripts/ # script needs to be run from its directory
-python3 visualizeModelOutput.py          # produces selection_angle.pdf in the same directory
+python3 scripts/visualization/visualizeModelOutput.py {run_id} {output.pdf} # produces output.pdf
 ```
 
 We can generate visualizations for both the plays and the model results using scripts found in Scripts/visualizationScripts:
@@ -91,7 +87,7 @@ In `config/hparams_search/soccermap_optuna.yaml`, the search over the learning r
 ```sh
 python3 scripts/helper/checkpntToModel.py epoch_014.ckpt
 ```
-This script creates correspond model files in `stores/model/`.
+This script creates corresponding model files in `stores/model/`.
 
 It should be noted that the un-xPass paper uses the following hyperparameter methods, which are slightly different from the current hyperparameter setup:
 
