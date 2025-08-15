@@ -14,11 +14,20 @@ from unxpass.components.utils import log_model, load_model
 from unxpass import __main__, utils
 from omegaconf import DictConfig, OmegaConf
 import hydra
+import configparser
 
-config_fp = "/home/lz80/un-xPass/config/" #absolute path, #/home/lz80/soccer-decision-making/config/
+# Handle file paths ----
+
+config = configparser.ConfigParser()
+config.read('soccer-decision-making.ini')
+path_data = config['path']['data']
+path_repo = config['path']['repo']
+path_config = path_repo + "/config/"
+
+
 experiment = "pass_value/soccermap_defensive_failed"#experiment to be used, should be change depending on the model wanted
 overrides = [f"experiment={experiment}"]
-cfg = __main__.parse_config(config_path=config_fp, overrides = overrides)
+cfg = __main__.parse_config(config_path = path_config, overrides = overrides)
 side = experiment.split("_")[2]
 state = experiment.split("_")[3]
 offensive = side == "offensive"
@@ -27,7 +36,7 @@ completed = state == "completed"
 train_cfg = OmegaConf.to_object(cfg.get("train_cfg", DictConfig({})))
 utils.instantiate_callbacks(train_cfg)
 utils.instantiate_loggers(train_cfg)
-custom_path = "../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/features/features"
+custom_path = path_data + "/Bundesliga/features/features"
 #features_fail_test_ogTest: original end locations with speed and impossible filtering
 #custom_path = "/home/lz80/rdf/sp161/shared/soccer-decision-making/Bundesliga/features/oldFeatures/all_features_defl_fail"
 if completed:

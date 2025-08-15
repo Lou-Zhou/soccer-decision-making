@@ -149,3 +149,5 @@ notebooks/gifs/
 lightning_logs/
 runs/
 multirun/
+
+soccer-decision-making.ini

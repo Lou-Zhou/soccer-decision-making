@@ -5,6 +5,13 @@ from typing import Callable
 # import dotenv
 import hydra
 from omegaconf import DictConfig, OmegaConf
+import configparser
+
+# Handle file paths ----
+
+config = configparser.ConfigParser()
+config.read('soccer-decision-making.ini')
+path_data = config['path']['data']
 
 
 # load environment variables from `.env` file if it exists
@@ -39,7 +46,7 @@ def main(config: DictConfig):
     # Train model
     logger.info("Instantiating training dataset")
     dataset_train: Callable = partial(
-        PassesDataset, path="../rdf/sp161/shared/soccer-decision-making/Bundesliga/features/features_subset"#subset of one game of code to test, should be changed when actually running
+        PassesDataset, path = path_data + "/Bundesliga/features/features_subset"#subset of one game of code to test, should be changed when actually running
     )
     logger.info(f"Instantiating model component <{config.component._target_}>")
     component: UnxpassComponent = hydra.utils.instantiate(config.component, _convert_="partial")

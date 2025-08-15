@@ -37,7 +37,8 @@ def plot_single_model_output(game_id, action_id, title, surfaces, db, xg = False
     plot_action_og(ex_action, ax = axs, surface = surface, log = log, surface_kwargs={"interpolation":"bilinear", "vmin": None, "vmax": None, "cmap": "Greens"}, show_action = False)
     plt.tight_layout()
 import mplsoccer
-from unxpass.Scripts.resultGenerators import getResults
+#from unxpass.Scripts.resultGenerators import getResults
+from scripts.results import getResults
 
 def visualize_surface(freeze_frame, start,end = None, ball_speed = None, title = None, ax = None, surface = None, surface_kwargs = None, log = False, modelType = "val"):
     """
