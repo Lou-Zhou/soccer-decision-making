@@ -150,4 +150,4 @@ lightning_logs/
 runs/
 multirun/
 
-soccer-decision-making.ini
+*.ini
