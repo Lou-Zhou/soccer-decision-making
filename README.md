@@ -15,7 +15,7 @@ python3 -m venv .venv
 cd soccer-decision-making
 ```
 
-Additionally, update sdm/config.ini with the appropriate paths on your machine.
+Additionally, copy the sample file config.ini to sdm/config.ini and update the contents with the appropriate file paths on your machine.
 
 ### Setup
 
