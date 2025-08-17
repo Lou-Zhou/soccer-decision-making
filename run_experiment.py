@@ -5,13 +5,8 @@ from typing import Callable
 # import dotenv
 import hydra
 from omegaconf import DictConfig, OmegaConf
-import configparser
 
-# Handle file paths ----
-
-config = configparser.ConfigParser()
-config.read('soccer-decision-making.ini')
-path_data = config['path']['data']
+from sdm import path_data
 
 
 # load environment variables from `.env` file if it exists

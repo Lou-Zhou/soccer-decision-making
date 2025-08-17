@@ -7,9 +7,12 @@ config = configparser.ConfigParser()
 default_config_path = Path(__file__).parent / "config.ini"
 config.read(default_config_path)
 
-# Example: make data path easily accessible
 try:
     path_data = config['path']['data']
 except KeyError:
-    path_data = None  # or raise a warning
-import configparser
+    path_data = None
+
+try:
+    path_repo = config['path']['repo']
+except KeyError:
+    path_repo = None
