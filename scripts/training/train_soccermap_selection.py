@@ -14,14 +14,11 @@ from unxpass.components.utils import log_model, load_model
 from unxpass import __main__, utils
 from omegaconf import DictConfig, OmegaConf
 import hydra
-import configparser
+
+from sdm import path_data, path_repo
 
 # Handle file paths ----
 
-config = configparser.ConfigParser()
-config.read('soccer-decision-making.ini')
-path_data = config['path']['data']
-path_repo = config['path']['repo']
 path_db = path_data + "/Bundesliga/buli_all.sql"
 path_config = path_repo + "/config/"
 STORES_FP = Path("../stores")

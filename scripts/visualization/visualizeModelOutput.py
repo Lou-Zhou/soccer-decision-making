@@ -18,14 +18,9 @@ from unxpass.components.utils import load_model
 from unxpass.components.withSpeeds import pass_selection_speeds, pass_success_speeds, pass_value_speeds#, pass_value_speeds_testing
 from unxpass.visualizers import plotPlays
 from matplotlib.backends.backend_pdf import PdfPages
-import configparser
 import sys
 
-# Handle file paths ----
-
-config = configparser.ConfigParser()
-config.read('soccer-decision-making.ini')
-path_data = config['path']['data']
+from sdm import path_data
 
 # Handle command line arguments ----
 

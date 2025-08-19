@@ -15,12 +15,7 @@ python3 -m venv .venv
 cd soccer-decision-making
 ```
 
-Additionally, create a file called soccer-decision-making.ini in your working directory, with the following contents:
-```
-[path]
-data = {absolute path to RDF data folder, e.g. /home/sp161/rdf/sp161/shared/soccer-decision-making}
-repo = {absolute path to code repository, e.g. /home/sp161/soccer-decision-making}
-```
+Additionally, copy the sample file config.ini to sdm/config.ini and update the contents with the appropriate file paths on your machine.
 
 ### Setup
 
@@ -33,9 +28,10 @@ source .venv/bin/activate
 ## Generating Parquet Features
 
 Since data is formatted as a directory of parquet files, various python scripts can be used to get these features from tracking and event data for all three data formats for the soccermap models:
-1. Sportec Data - unxpass/Scripts/featureGenerators/getBuliFeats.py
-2. Hawkeye Data - unxpass/Scripts/featureGenerators/getHawkeyeFeats.py
-3. SkillCorner Data - unxpass/Scripts/featureGenerators/getSkillCornerFeatures.py
+
+1. Sportec Data - scripts/features/getBuliFeats.py
+2. Hawkeye Data - scripts/features/getHawkeyeFeats.py
+3. SkillCorner Data - scripts/features/getSkillCornerFeatures.py
 
 For the Hawkeye features, since we are looking at times surrounding an event as well, model outputs will be specified in a (game_id, action_id-frame_index) way, where frame_index describes the number of frames from the original reception. In addition, editFeatures.py should be run to edit features as needed(e.g. getting only the successful passes for the value model)
 
@@ -55,11 +51,21 @@ These scripts will output both the last trained model (in run_id form) as well a
 
 ## Visualizing Results
 
+Here is an example of how to visualize the first 200 passes of one game for a trained selection model, predicting on Hawk-Eye data (takes about a minute):
+
 ```sh
-python3 scripts/visualization/visualizeModelOutput.py {run_id} {output.pdf} # produces output.pdf
+import sdm.visualization
+
+sdm.visualization.plot_model_outputs(
+    component = "selection",
+    run_id = "cb051b26ef7640f9834e360fb3ca0c1b",
+    path_feature = "Hawkeye/Hawkeye_Features/sequences",
+    game_id = 3835320,
+    show_pass = False
+)
 ```
 
-We can generate visualizations for both the plays and the model results using scripts found in Scripts/visualizationScripts:
+There is some additional useful code in scripts/vizualization:
 
 1. animatePlays.py - animates given sequence of frames from the tracking data
 2. animateSurfaces.py - animates model surfaces over sequences of frames, useful for Hawkeye data
