@@ -13,6 +13,7 @@ from unxpass.datasets import PassesDataset
 from unxpass.components.withSpeeds import pass_selection_speeds, pass_success_speeds, pass_value_speeds
 
 from . import path_data
+from . import animation
 from . import results
 
 warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
@@ -252,16 +253,13 @@ def plot_model_outputs(component: str,
                     return
 
 
-from unxpass.visualizers import Animations
-
 
 def generate_pass_surface_gifs(
     component: str,
     run_id: str,
     path_feature: str = "Hawkeye/Hawkeye_Features/sequences_tenSecPrior",
     path_play: str = "steffen/sequence_filtered.csv",
-    path_output: str = "animations",
-    game_id: str | None = None,
+    path_output: str = "output/animations",
     num_to_generate: int = 5,
     fps: int = 10,
     dpi: int = 200,
@@ -281,8 +279,6 @@ def generate_pass_surface_gifs(
         Path to CSV file with filtered play sequences.
     path_output : str
         Directory to save generated animations.
-    game_id : str or None
-        Specific game_id to generate animations for. If None, cycles through sequences.
     num_to_generate : int
         Number of animations to generate.
     fps : int
@@ -305,43 +301,56 @@ def generate_pass_surface_gifs(
             model=mlflow.pytorch.load_model(f'runs:/{run_id}/model', map_location='cpu')
         )
 
-    # Load data and model
+    # Load the data
     features_dir = Path(path_data) / path_feature
     dataset_test = partial(PassesDataset, path=features_dir)
 
-    sequences = pd.read_csv(Path(path_data) / path_play, delimiter=";")
+    sequences_to_predict = (
+        pd
+        .read_csv(Path(path_data) / path_play, delimiter=';')
+        .assign(include=True)
+        .loc[:, ['match_id', 'index', 'include']]
+        .head(num_to_generate)
+    )
+
+    frames_to_include = (
+        model
+        .initialize_dataset(dataset=dataset_test)
+        .features
+        .reset_index()
+        .rename(columns={'game_id': 'match_id'})
+        .assign(index=lambda d: d['action_id'].str.split('-').str[0].astype(int))
+        .loc[:, ['match_id', 'index']]
+        .merge(sequences_to_predict, on=['match_id', 'index'], how = 'left')
+    )
+
+    subset = np.flatnonzero(frames_to_include['include'] == True)
 
     # Pre-compute surfaces
-    surfaces = model.predict_surface(dataset_test, game_id=game_id)
+    surfaces = model.predict_surface(dataset_test, subset = subset)
 
     # Load additional datasets
-    freeze_frame_df = pd.read_parquet(f"{custom_path}/x_freeze_frame_360.parquet")
-    speed_df = pd.read_parquet(f"{custom_path}/x_speed.parquet")
-    start_df = pd.read_parquet(f"{custom_path}/x_startlocation.parquet")
+    freeze_frame_df = pd.read_parquet(f'{path_data}/{path_feature}/x_freeze_frame_360.parquet')
+    speed_df = pd.read_parquet(f'{path_data}/{path_feature}/x_speed.parquet')
+    start_df = pd.read_parquet(f'{path_data}/{path_feature}/x_startlocation.parquet')
 
-    # Generate animations
-    for anim in range(num_to_generate):
-        if game_id is None:
-            game_id = sequences.iloc[anim]["match_id"]
-
-        game_sequences = sequences[sequences["match_id"] == game_id]
-        idx = game_sequences.iloc[anim]["index"]
-        s_id = game_sequences.iloc[anim]["id"]
-
-        animation = Animations.getSurfaceAnimation(
-            idx,
-            game_id,
-            sequences,
-            surfaces,
-            freeze_frame_df,
-            start_df,
-            speed_df,
-            log=True,
-            title=f"Selection Probabilities | {game_id} | {s_id} 10Sec",
-            numFrames=251,
-            playerOnly=True,
-            modelType=component,
-        )
-
-        animation_title = f"{path_output}/animation_{game_id}_{s_id}_10Sec.gif"
-        animation.save(animation_title, writer="pillow", fps=fps, dpi=dpi)
+# Generate animations
+for i, sequence in sequences_to_predict.iterrows():
+    match_id = sequence['match_id']
+    index = sequence['index']
+    animation_i = animation.getSurfaceAnimation(
+        index=index,
+        game_id=match_id,
+        surfaces=surfaces,
+        freeze_frame=freeze_frame_df,
+        start=start_df,
+        speed=speed_df,
+        log=True,
+        title=f"Selection Probabilities | {match_id} | {index} 10Sec",
+        numFrames=251,
+        playerOnly=True,
+        modelType=component,
+    )
+    
+    animation_title = f"{path_output}/animation_{match_id}_{index}_10Sec.gif"
+    animation_i.save(animation_title, writer="pillow", fps=fps, dpi=dpi)
