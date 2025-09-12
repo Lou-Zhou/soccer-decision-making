@@ -192,8 +192,31 @@ def animate_surfaces(freeze_frame_df, start_df, speed_df, action_tuples,
     plt.close(fig)
     return anim
     
-def getSurfaceAnimation(index, game_id, sequence, surfaces, freeze_frame, start, speed, log = False, title = None, numFrames = 75, playerOnly = False, modelType = None):
+def getSurfaceAnimation(
+    index,
+    game_id,
+    surfaces,
+    freeze_frame,
+    start,
+    speed,
+    log = False,
+    title = None,
+    numFrames = 75,
+    playerOnly = False,
+    modelType = None
+):
     play_surfaces = {k:v for k,v in surfaces[game_id].items() if k.split("-")[0] == str(index)}
     action_tuples = [(game_id, key) for key in play_surfaces.keys()][0:numFrames]
-    animation = animate_surfaces(freeze_frame, start, speed, action_tuples, surfaces = surfaces, surface_kwargs = {"interpolation":"bilinear", "vmin": None, "vmax": None, "cmap": "Greens"}, log = log, title = title, playerOnly = playerOnly, modelType = modelType)
+    animation = animate_surfaces(
+        freeze_frame,
+        start,
+        speed,
+        action_tuples,
+        surfaces = surfaces,
+        surface_kwargs = {"interpolation":"bilinear", "vmin": None, "vmax": None, "cmap": "Greens"},
+        log = log,
+        title = title,
+        playerOnly = playerOnly,
+        modelType = modelType
+    )
     return animation
