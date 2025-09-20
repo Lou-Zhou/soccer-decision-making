@@ -149,5 +149,5 @@ notebooks/gifs/
 lightning_logs/
 runs/
 multirun/
-config.py
+
 *.ini
