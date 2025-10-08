@@ -52,16 +52,29 @@ These scripts will output both the last trained model (in run_id form) as well a
 ## Visualizing Results
 
 Here is an example of how to visualize the first 200 passes of one game for a trained selection model, predicting on Hawk-Eye data (takes about a minute):
-
-```sh
+```python
 import sdm.visualization
 
 sdm.visualization.plot_model_outputs(
-    component = "selection",
-    run_id = "cb051b26ef7640f9834e360fb3ca0c1b",
-    path_feature = "Hawkeye/Hawkeye_Features/sequences",
+    component = 'selection',
+    run_id = 'cb051b26ef7640f9834e360fb3ca0c1b',
+    path_feature = 'Hawkeye/Hawkeye_Features/sequences',
     game_id = 3835320,
     show_pass = False
+)
+```
+
+Here is an example of how to generate animated results:
+```python
+import sdm.visualization
+
+sdm.visualization.generate_pass_surface_gifs(
+    component = 'selection',
+    run_id = 'cb051b26ef7640f9834e360fb3ca0c1b',
+    path_feature = 'Hawkeye/Hawkeye_Features/sequences_tenSecPrior',
+    path_play = 'steffen/sequence_filtered.csv',
+    path_output = 'output/animations',
+    num_to_generate = 5
 )
 ```
 
