@@ -42,6 +42,7 @@ from scripts.results import getResults
 
 def visualize_surface(freeze_frame, start,end = None, ball_speed = None, title = None, ax = None, surface = None, surface_kwargs = None, log = False, modelType = "val"):
     """
+    DEPRECATED (see sdm.visualization.visualize_surface)
     Visualize gamestate from parquet data with a surface
     Inputs(freeze_frame, start, end, ball_speed) should essentially be rows of each parquet file
     """
@@ -416,6 +417,9 @@ def visualize_coords_from_BuliTracking(frame_num, events, tracking, ax = None):
 
 
 def visualize_parquet_animation(freeze_frame, start, speed, action_tuple, title = None, surfaces = None, surface_kwargs = None, ax = None, log = False, playerOnly = False, modelType = "sel"):
+    """
+    DEPRECATED (see sdm.visualization.visualize_surface)
+    """
     if surfaces is not None:
         surface = surfaces[action_tuple[0]][action_tuple[1]]
     ff_action = freeze_frame.loc[action_tuple, 'freeze_frame_360_a0']

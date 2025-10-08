@@ -140,7 +140,7 @@ def visualize_surface(component,
         if not player['teammate'] or component != 'selection' or player['actor']:
             vis_alpha = 1
         if player['teammate'] and not player['actor']:
-            ax.text(start_x, start_y + .5, str(alpha), fontsize=8, color='black', ha='left', va='bottom')
+            ax.text(start_x, start_y + .5, f'{alpha:.1%}', fontsize=8, color='black', ha='left', va='bottom')
         pitch.scatter([start_x], [start_y], c=color, s=30, ax=ax, marker = marker, alpha = vis_alpha)
     # Scatter the start and end points for clarity
     pitch.scatter([ball_x], [ball_y], c='w', ec = 'k', s=20, ax=ax)
@@ -155,7 +155,7 @@ def visualize_surface(component,
         else:
             ax.imshow(surface, extent=[0.0, 105.0, 0.0, 68.0], origin='lower', **surface_kwargs)
     ax.set_title(title)
-    
+
     if show:
         return fig
 
@@ -163,7 +163,7 @@ def visualize_surface(component,
 def plot_model_outputs(component: str,
                        run_id: str,
                        path_feature: str,
-                       path_output: str = 'model_outputs.pdf',
+                       path_output: str = 'output/surface.pdf',
                        game_id=None,
                        max_actions: int = 200,
                        **kwargs):
@@ -189,7 +189,7 @@ def plot_model_outputs(component: str,
     max_actions : int, optional
         Maximum number of actions to plot (default is 200).
     **kwargs : dict, optional
-        Additional keyword arguemnts passed directly to visualize_surface.
+        Additional keyword arguments passed directly to visualize_surface.
     """
 
     # Load the model
@@ -334,23 +334,24 @@ def generate_pass_surface_gifs(
     speed_df = pd.read_parquet(f'{path_data}/{path_feature}/x_speed.parquet')
     start_df = pd.read_parquet(f'{path_data}/{path_feature}/x_startlocation.parquet')
 
-# Generate animations
-for i, sequence in sequences_to_predict.iterrows():
-    match_id = sequence['match_id']
-    index = sequence['index']
-    animation_i = animation.getSurfaceAnimation(
-        index=index,
-        game_id=match_id,
-        surfaces=surfaces,
-        freeze_frame=freeze_frame_df,
-        start=start_df,
-        speed=speed_df,
-        log=True,
-        title=f"Selection Probabilities | {match_id} | {index} 10Sec",
-        numFrames=251,
-        playerOnly=True,
-        modelType=component,
-    )
-    
-    animation_title = f"{path_output}/animation_{match_id}_{index}_10Sec.gif"
-    animation_i.save(animation_title, writer="pillow", fps=fps, dpi=dpi)
+    # Generate animations
+    for i, sequence in sequences_to_predict.iterrows():
+        match_id = sequence['match_id']
+        index = sequence['index']
+        animation_i = animation.getSurfaceAnimation(
+            component=component,
+            index=index,
+            game_id=match_id,
+            surfaces=surfaces,
+            freeze_frame=freeze_frame_df,
+            start=start_df,
+            speed=speed_df,
+            log=True,
+            title=f"Selection Probabilities | {match_id} | {index} 10Sec",
+            numFrames=251,
+            playerOnly=True,
+            modelType=component,
+        )
+        
+        animation_title = f"{path_output}/animation_{match_id}_{index}_10Sec.gif"
+        animation_i.save(animation_title, writer="pillow", fps=fps, dpi=dpi)

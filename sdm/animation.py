@@ -6,6 +6,7 @@ from matplotlib.animation import FuncAnimation
 import unxpass.load_xml
 import pandas as pd
 from unxpass.visualizers import plotPlays
+from . import visualization
 def next_different_value(series):
     """
     Gets next different value in a series.
@@ -146,12 +147,13 @@ def get_action_ids(uuid, game_id):
     return test[test['original_event_id'].fillna('').str.contains(uuid)].index.get_level_values('action_id').tolist()[1:]
 
 
-def animate_surfaces(freeze_frame_df, start_df, speed_df, action_tuples, 
+def animate_surfaces(component, freeze_frame_df, start_df, speed_df, action_tuples, 
                                surfaces=None, surface_kwargs=None, log=False, interval=250, title=None, playerOnly = False, modelType = None):
     """
     Creates an animation of player coordinates and surfaces for a sequence of actions.
     
     Parameters:
+        component: 'selection', 'success' or 'value'
         freeze_frame_df: DataFrame containing freeze frame data
         start_df: DataFrame with starting ball positions
         speed_df: (unused but kept for compatibility)
@@ -174,25 +176,37 @@ def animate_surfaces(freeze_frame_df, start_df, speed_df, action_tuples,
     def update(frame):
         ax.clear()
         action_tuple = action_tuples[frame]
-        plotPlays.visualize_parquet_animation(
-            freeze_frame_df,
-            start_df,
-            speed_df,
-            action_tuple,
-            title=f"{title} | {frame}",
-            surfaces=surfaces,
-            surface_kwargs=surface_kwargs,
+#        plotPlays.visualize_parquet_animation(
+#            freeze_frame_df,
+#            start_df,
+#            speed_df,
+#            action_tuple,
+#            title=f"{title} | {frame}",
+#            surfaces=surfaces,
+#            surface_kwargs=surface_kwargs,
+#            ax=ax,
+#            log=log,
+#            playerOnly=playerOnly,
+#            modelType=modelType
+#        )
+        visualization.visualize_surface(
+            component=component,
+            freeze_frame=freeze_frame_df.loc[action_tuple, ],
+            surface=surfaces[action_tuple[0]][action_tuple[1]],
+            start=start_df.loc[action_tuple, ],
             ax=ax,
+            title=f"{title} | {frame}",
+            surface_kwargs=surface_kwargs,
             log=log,
-            playerOnly=playerOnly,
-            modelType=modelType
         )
+
 
     anim = FuncAnimation(fig, update, frames=len(action_tuples), interval=interval, repeat=False)
     plt.close(fig)
     return anim
     
 def getSurfaceAnimation(
+    component,
     index,
     game_id,
     surfaces,
@@ -208,6 +222,7 @@ def getSurfaceAnimation(
     play_surfaces = {k:v for k,v in surfaces[game_id].items() if k.split("-")[0] == str(index)}
     action_tuples = [(game_id, key) for key in play_surfaces.keys()][0:numFrames]
     animation = animate_surfaces(
+        component,
         freeze_frame,
         start,
         speed,
