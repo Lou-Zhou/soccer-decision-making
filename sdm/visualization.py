@@ -1,13 +1,12 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from pathlib import Path
+import os
 from functools import partial
 from tqdm import tqdm
 import mlflow
 from matplotlib.backends.backend_pdf import PdfPages
 import warnings
-
 import mplsoccer
 from unxpass.datasets import PassesDataset
 from unxpass.components.withSpeeds import pass_selection_speeds, pass_success_speeds, pass_value_speeds
@@ -207,7 +206,7 @@ def plot_model_outputs(component: str,
         )
 
     # Prepare dataset
-    features_dir = Path(path_data) / path_feature
+    features_dir = os.path.join(path_data, path_feature)
     dataset_test = partial(PassesDataset, path=features_dir)
 
     # Predict surfaces
@@ -287,6 +286,8 @@ def generate_pass_surface_gifs(
         Resolution for the GIF.
     """
 
+    os.makedirs(path_output, exist_ok=True)
+
     # Load the model
     if (component == 'selection') :
         model = pass_selection_speeds.SoccerMapComponent(
@@ -302,40 +303,40 @@ def generate_pass_surface_gifs(
         )
 
     # Load the data
-    features_dir = Path(path_data) / path_feature
+    features_dir = os.path.join(path_data, path_feature)
     dataset_test = partial(PassesDataset, path=features_dir)
 
-    sequences_to_predict = (
-        pd
-        .read_csv(Path(path_data) / path_play, delimiter=';')
-        .assign(include=True)
-        .loc[:, ['match_id', 'index', 'include']]
-        .head(num_to_generate)
-    )
-
-    frames_to_include = (
+    frame = (
         model
         .initialize_dataset(dataset=dataset_test)
         .features
         .reset_index()
         .rename(columns={'game_id': 'match_id'})
         .assign(index=lambda d: d['action_id'].str.split('-').str[0].astype(int))
-        .loc[:, ['match_id', 'index']]
-        .merge(sequences_to_predict, on=['match_id', 'index'], how = 'left')
     )
 
-    subset = np.flatnonzero(frames_to_include['include'] == True)
+    sequence_to_include = (
+        frame
+        .loc[:, ['match_id', 'index']]
+        .drop_duplicates()
+        .assign(include=True)
+        .head(num_to_generate)
+    )
+
+    subset = np.flatnonzero(
+        frame.merge(sequence_to_include, on=['match_id', 'index'], how='left')['include']
+    )
 
     # Pre-compute surfaces
     surfaces = model.predict_surface(dataset_test, subset = subset)
 
     # Load additional datasets
-    freeze_frame_df = pd.read_parquet(f'{path_data}/{path_feature}/x_freeze_frame_360.parquet')
-    speed_df = pd.read_parquet(f'{path_data}/{path_feature}/x_speed.parquet')
-    start_df = pd.read_parquet(f'{path_data}/{path_feature}/x_startlocation.parquet')
+    freeze_frame_df = pd.read_parquet(f'{path_feature}/x_freeze_frame_360.parquet')
+    speed_df = pd.read_parquet(f'{path_feature}/x_speed.parquet')
+    start_df = pd.read_parquet(f'{path_feature}/x_startlocation.parquet')
 
     # Generate animations
-    for i, sequence in sequences_to_predict.iterrows():
+    for i, sequence in sequence_to_include.iterrows():
         match_id = sequence['match_id']
         index = sequence['index']
         animation_i = animation.getSurfaceAnimation(
@@ -347,11 +348,11 @@ def generate_pass_surface_gifs(
             start=start_df,
             speed=speed_df,
             log=True,
-            title=f"Selection Probabilities | {match_id} | {index} 10Sec",
+            title=f"Selection Probabilities | {match_id} | {index}",
             numFrames=251,
             playerOnly=True,
             modelType=component,
         )
         
-        animation_title = f"{path_output}/animation_{match_id}_{index}_10Sec.gif"
+        animation_title = f"{path_output}/animation_{match_id}_{index}.gif"
         animation_i.save(animation_title, writer="pillow", fps=fps, dpi=dpi)
