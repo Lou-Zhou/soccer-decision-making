@@ -49,6 +49,14 @@ The paths to the configurations in all these scripts must be set manually as the
 
 These scripts will output both the last trained model (in run_id form) as well as the model with the smallest lost(in checkpoint form). Using unxpass/Scripts/helperScripts/checkpntToModel.py, we can then turn these checkpoints into run_ids so we can standardize model storage. The paths to these checkpoints can be found from the code outputs or in trainingscripts/lightning_logs/version_x/checkpoints.
 
+## Prediction
+
+```sh
+python3 scripts/predict.py
+```
+
+The `predict.py` script provides an example of how to generate features and then predictions for a list of specified plays. Currently, you need to edit the script to use different models, etc. In the future, we'd like to set this up as command line arguments.
+
 ## Visualizing Results
 
 Here is an example of how to visualize the first 200 passes of one game for a trained selection model, predicting on Hawk-Eye data (takes about a minute):
