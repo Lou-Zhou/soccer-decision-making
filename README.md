@@ -55,7 +55,7 @@ These scripts will output both the last trained model (in run_id form) as well a
 python3 scripts/predict.py
 ```
 
-The `predict.py` script provides an example of how to generate features and then predictions for a list of specified plays. Currently, you need to edit the script to use different models, etc. In the future, we'd like to set this up as command line arguments.
+The `predict.py` script provides an example of how to generate features, predictions and animated GIFs for a list of specified plays. Currently, you need to edit the script to use different models, etc. In the future, we'd like to set this up as command line arguments.
 
 ## Visualizing Results
 
