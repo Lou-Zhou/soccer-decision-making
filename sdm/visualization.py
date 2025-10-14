@@ -261,7 +261,7 @@ def generate_pass_surface_gifs(
     path_output: str = "output/animations",
     num_to_generate: int = 5,
     fps: int = 10,
-    dpi: int = 200,
+    dpi: int = 100,
 ):
     """
     Generate animated GIFs of soccer pass surface predictions.
@@ -354,5 +354,5 @@ def generate_pass_surface_gifs(
             modelType=component,
         )
         
-        animation_title = f"{path_output}/animation_{match_id}_{index}.gif"
+        animation_title = f"{path_output}/{match_id}_{index}_{component}.gif"
         animation_i.save(animation_title, writer="pillow", fps=fps, dpi=dpi)
