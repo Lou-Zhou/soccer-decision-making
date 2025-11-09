@@ -5,9 +5,12 @@ import numpy as np
 import json
 import os
 from tqdm import tqdm
-from unxpass.databases import SQLiteDatabase
 import traceback
 from time import process_time
+
+from unxpass.databases import SQLiteDatabase
+from sdm import path_data, path_repo
+
 def getFlip(freezeframe, secondary_frame = None):
     """ 
     Determines if a flip is needed by gk location
@@ -321,7 +324,7 @@ def addAllSpeedBuli(games, ball = False, checkBlocked = False):
     indices = []
     print("Generating Indices")#pregenerates indices for all games, used to speed up process of appending to dataframe
     for game_id in tqdm(games):
-        eventcsv = load_xml.load_csv_event(f"../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/raw_data/KPI_Merged_all/KPI_MGD_{game_id}.csv")
+        eventcsv = load_xml.load_csv_event(f"{path_data}/Bundesliga/raw_data/KPI_Merged_all/KPI_MGD_{game_id}.csv")
         for idx, row in tqdm(eventcsv.iterrows(), leave = False):
             action_id = row['EVENT_ID']
             if checkDeadBall(row, eventcsv) == -1:#ensure not a deadball situation
@@ -338,9 +341,9 @@ def addAllSpeedBuli(games, ball = False, checkBlocked = False):
     iter = 1
     for game_id in tqdm(games):
         try:
-            eventcsv = load_xml.load_csv_event(f"../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/raw_data/KPI_Merged_all/KPI_MGD_{game_id}.csv")
-            trackingdf = pd.read_csv(f"../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/raw_data/tracking_csv/{game_id}.csv")
-            lineups = load_xml.load_players(f"../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/raw_data/match_information/{game_id}.xml", False)
+            eventcsv = load_xml.load_csv_event(f"{path_data}/Bundesliga/raw_data/KPI_Merged_all/KPI_MGD_{game_id}.csv")
+            trackingdf = pd.read_csv(f"{path_data}/Bundesliga/raw_data/tracking_csv/{game_id}.csv")
+            lineups = load_xml.load_players(f"{path_data}/Bundesliga/raw_data/match_information/{game_id}.xml", False)
             first_frame = {}
             last_frame = {}
             eventcsv = getReceipts(trackingdf, eventcsv)
@@ -382,6 +385,95 @@ def addAllSpeedBuli(games, ball = False, checkBlocked = False):
     if ball:
         return player_speeds, ball_speeds, ball_start, ball_end
     return player_speeds
+
+def trainExpectedThreat(games, grid_x=16, grid_y=12, delta_threshold=1e-10):
+    event_season = pd.DataFrame()
+    for game_id in tqdm(games):
+        event_game = load_xml.load_csv_event(f"{path_data}/Bundesliga/raw_data/KPI_Merged_all/KPI_MGD_{game_id}.csv")
+        event_season = pd.concat([event_season, event_game], axis=0)
+    location_data = (event_season
+        .reset_index()
+        .query("Goingright.notna() or xG.notna()")
+        .assign(
+            team = lambda x: x['Club1_Three_Letter_Code'],
+            x = lambda x: x['X_EVENT'].str.replace(',', '.').astype(float),
+            y = lambda x: x['Y_EVENT'].str.replace(',', '.').astype(float),
+            x_flip = lambda x: np.where(x['Goingright'], x['x'], -x['x']),
+            y_flip = lambda x: np.where(x['Goingright'], x['y'], -x['y']),
+            x_goals = lambda x: np.where(
+                x['SUBTYPE'] == 'OwnGoal',
+                1,
+                x['xG'].str.replace(',', '.').astype(float)
+            ),
+            x_grid = lambda x: pd.qcut(x['x_flip'], grid_x, labels=range(0, grid_x)),
+            y_grid = lambda x: pd.qcut(x['y_flip'], grid_y, labels=range(0, grid_y)),
+            state_pre = lambda x: np.select(
+                [
+                    ~np.isnan(x['x_goals'])
+                ],
+                [
+                    ('shot' + (round(x['x_goals'] / 0.05) * 0.05).astype(str)).str[:8]
+                ],
+                default=x['x_grid'].astype(str) + "_" + x['y_grid'].astype(str)
+            ),
+            state_post = lambda x: np.where(
+                (x['team'] == x['team'].shift(-1)) | (x['SUBTYPE'].shift(-1) == 'OwnGoal'),
+                x['state_pre'].shift(-1),
+                'end'
+            )
+        )
+        .loc[:, ['EVENT_ID', 'team', 'SUBTYPE', 'x_goals', 'state_pre', 'state_post']]
+        .reset_index()
+    )
+    state = (location_data
+        .groupby('state_pre')
+        .size()
+        .reset_index()
+        .assign(
+            state = lambda x: x['state_pre'],
+            count = lambda x: x[0],
+            value = 0,
+        )
+        .loc[:, ['state', 'count', 'value']]
+    )
+    transition = (location_data
+        .assign(state_pre_substr = lambda x: x.state_pre.str[:4])
+        .query('(state_pre_substr != "shot") or (state_post == "end")') # force shot to end transition
+        .groupby(['state_pre', 'state_post'])
+        .size()
+        .reset_index()
+        .merge(state, left_on = 'state_pre', right_on = 'state')
+        .assign(
+            prob = lambda x: x[0] / x['count'],
+            reward = lambda x: np.where(
+                x.state_post.str[:4] == 'shot',
+                pd.to_numeric(x.state_post.str[4:], errors = 'coerce'),
+                0
+            ),
+        )
+        .loc[:, ['state_pre', 'state_post', 'prob', 'reward']]
+    )
+    delta_max = 1
+    while delta_max > delta_threshold:
+        state_new = (transition
+            .merge(state, how = 'left', left_on = 'state_post', right_on = 'state')
+            .assign(
+                state = lambda x: x.state_pre,
+                value = lambda x: x.prob * (x.reward + x.value),
+            )
+            .groupby(['state'])['value']
+            .sum()
+            .reset_index()
+        )
+        delta_max = (state
+            .merge(state_new, on = ['state'], suffixes = ('', '_new'))
+            .assign(value_delta = lambda x: abs(x.value - x.value_new))
+            ['value_delta']
+            .max()
+        )
+        state = state_new
+    return(state)
+
 def getBuliLabels(games, output_dir, framesFrom = 10, xgType = "xml"):
     """
     Generates labels for training from bundesliga data
@@ -391,7 +483,7 @@ def getBuliLabels(games, output_dir, framesFrom = 10, xgType = "xml"):
     indices = []
     print("Generating Indices")
     for game_id in tqdm(games):
-        eventcsv = load_xml.load_csv_event(f"../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/raw_data/KPI_Merged_all/KPI_MGD_{game_id}.csv")
+        eventcsv = load_xml.load_csv_event(f"{path_data}/Bundesliga/raw_data/KPI_Merged_all/KPI_MGD_{game_id}.csv")
         for idx, row in tqdm(eventcsv.iterrows(), leave = False):
             action_id = row['EVENT_ID']
             if checkDeadBall(row, eventcsv) == -1:#ensure not a deadball
@@ -406,8 +498,8 @@ def getBuliLabels(games, output_dir, framesFrom = 10, xgType = "xml"):
     nonActions = ['Offside', 'Substitution', 'Caution', 'FairPlay', 'Nutmeg', 'PossessionLossBeforeGoal', 'BallDeflection',
     'VideoAssistantAction']
     for game_id in tqdm(games):
-        eventcsv = load_xml.load_csv_event(f"../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/raw_data/KPI_Merged_all/KPI_MGD_{game_id}.csv")
-        xmlEvent = load_xml.load_event(f"../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/raw_data/event_data_all/{game_id}.xml")
+        eventcsv = load_xml.load_csv_event(f"{path_data}/Bundesliga/raw_data/KPI_Merged_all/KPI_MGD_{game_id}.csv")
+        xmlEvent = load_xml.load_event(f"{path_data}/Bundesliga/raw_data/event_data_all/{game_id}.xml")
         xmlEvent = xmlEvent[['EventId', 'xG']].rename(columns = {'xG':"xml_xG"})
         
         eventcsv = eventcsv[~eventcsv['SUBTYPE'].isin(nonActions)]#remove all nonactions
@@ -473,9 +565,9 @@ def main(ball, checkBlocked):
     # #If ball is false - then only freeze frame is created, if not, then all other features are generated
     # #checkBlocked - if True, then sets end location as the ball 10 frames fron the start(or -10000 if ball ends before 10 frames)
     # #print("Getting Bundesliga Features")
-    games = [game_id.split(".")[0] for game_id in os.listdir("../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/raw_data/tracking_csv")]
+    games = [game_id.split(".")[0] for game_id in os.listdir(f"{path_data}/Bundesliga/raw_data/tracking_csv")]
     # #games = games[:1]
-    feat_path = "../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/features/features_4sec"
+    feat_path = f"{path_data}/Bundesliga/features/features_4sec"
     # if ball:
     #   dfs = addAllSpeedBuli(games, ball, checkBlocked = checkBlocked)
     #   buli_speed = dfs[0]
