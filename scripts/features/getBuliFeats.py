@@ -386,35 +386,36 @@ def addAllSpeedBuli(games, ball = False, checkBlocked = False):
         return player_speeds, ball_speeds, ball_start, ball_end
     return player_speeds
 
-def trainExpectedThreat(games, grid_x=16, grid_y=12, delta_threshold=1e-10):
-    event_season = pd.DataFrame()
-    for game_id in tqdm(games):
-        event_game = load_xml.load_csv_event(f"{path_data}/Bundesliga/raw_data/KPI_Merged_all/KPI_MGD_{game_id}.csv")
-        event_season = pd.concat([event_season, event_game], axis=0)
-    location_data = (event_season
+def sanitize_event_data(event_data, grid_x=16, grid_y=12):
+    event_data_sanitized = (event_data
+        [~event_data.X_EVENT.isna()]
+        .assign(
+            team = lambda x: x.Club1_Three_Letter_Code,
+            x = lambda x: x.X_EVENT.str.replace(',', '.').astype(float),
+            y = lambda x: x.Y_EVENT.str.replace(',', '.').astype(float),
+            x_std = lambda x: (np.where(x.Goingright, 1, -1) * x.x + 52.5) / 105,
+            y_std = lambda x: (np.where(x.Goingright, 1, -1) * x.y + 38.0) / 68,
+            x_grid = lambda x: np.floor(x.x_std * grid_x).astype(int).astype(str),
+            y_grid = lambda x: np.floor(x.y_std * grid_y).astype(int).astype(str),
+            x_goals = lambda x: np.where(
+                x.SUBTYPE == 'OwnGoal',
+                1,
+                x.xG.str.replace(',', '.').astype(float)
+            ),
+        )
+        .reset_index()
+    )
+    return(event_data_sanitized)
+
+def train_xT(event_data, delta_threshold=1e-10):
+    location_data = (sanitize_event_data(event_data)
         .reset_index()
         .query("Goingright.notna() or xG.notna()")
         .assign(
-            team = lambda x: x['Club1_Three_Letter_Code'],
-            x = lambda x: x['X_EVENT'].str.replace(',', '.').astype(float),
-            y = lambda x: x['Y_EVENT'].str.replace(',', '.').astype(float),
-            x_flip = lambda x: np.where(x['Goingright'], x['x'], -x['x']),
-            y_flip = lambda x: np.where(x['Goingright'], x['y'], -x['y']),
-            x_goals = lambda x: np.where(
-                x['SUBTYPE'] == 'OwnGoal',
-                1,
-                x['xG'].str.replace(',', '.').astype(float)
-            ),
-            x_grid = lambda x: pd.qcut(x['x_flip'], grid_x, labels=range(0, grid_x)),
-            y_grid = lambda x: pd.qcut(x['y_flip'], grid_y, labels=range(0, grid_y)),
-            state_pre = lambda x: np.select(
-                [
-                    ~np.isnan(x['x_goals'])
-                ],
-                [
-                    ('shot' + (round(x['x_goals'] / 0.05) * 0.05).astype(str)).str[:8]
-                ],
-                default=x['x_grid'].astype(str) + "_" + x['y_grid'].astype(str)
+            state_pre = lambda x: np.where(
+                ~np.isnan(x['x_goals']),
+                ('shot' + (round(x['x_goals'] / 0.05) * 0.05).astype(str)).str[:8],
+                x['x_grid'].astype(str) + "_" + x['y_grid'].astype(str)
             ),
             state_post = lambda x: np.where(
                 (x['team'] == x['team'].shift(-1)) | (x['SUBTYPE'].shift(-1) == 'OwnGoal'),
@@ -472,12 +473,30 @@ def trainExpectedThreat(games, grid_x=16, grid_y=12, delta_threshold=1e-10):
             .max()
         )
         state = state_new
-    return(state)
+    expected_threat = state
+    return(expected_threat)
 
-def getBuliLabels(games, output_dir, framesFrom = 10, xgType = "xml"):
+def predict_xT(expected_threat, event_data):
+    pred = (sanitize_event_data(event_data)
+        .assign(
+            state = lambda x: np.where(
+                ~np.isnan(x['x_goals']),
+                ('shot' + (round(x['x_goals'] / 0.05) * 0.05).astype(str)).str[:8],
+                x['x_grid'].astype(str) + "_" + x['y_grid'].astype(str)
+            ),
+        )
+        .merge(expected_threat, how = 'left', on = 'state')
+        .assign(xT = lambda x: x.value)
+        .loc[:, ['EVENT_ID', 'xT']]
+    )
+    return(pred)
+
+
+def getBuliLabels(games, output_dir, expected_threat, framesFrom = 10, xgType = "xml"):
     """
     Generates labels for training from bundesliga data
-    framesFrom describes how far into the future to look for shots
+    expected_threat - fitted xT model (pandas df object)
+    framesFrom - describes how far into the future to look for shots
     xgType - since the xG from the xml and csv files are different, determine which one to use
     """
     indices = []
@@ -495,10 +514,14 @@ def getBuliLabels(games, output_dir, framesFrom = 10, xgType = "xml"):
     concedes = pd.DataFrame(columns = ["concedes"], index = index)
     scores_xg = pd.DataFrame(columns = ["scores_xg"], index = index)
     concedes_xg = pd.DataFrame(columns = ["concedes_xg"], index = index)
+    scores_xt = pd.DataFrame(columns = ["scores_xt"], index = index)
+    concedes_xt = pd.DataFrame(columns = ["concedes_xt"], index = index)
     nonActions = ['Offside', 'Substitution', 'Caution', 'FairPlay', 'Nutmeg', 'PossessionLossBeforeGoal', 'BallDeflection',
     'VideoAssistantAction']
     for game_id in tqdm(games):
         eventcsv = load_xml.load_csv_event(f"{path_data}/Bundesliga/raw_data/KPI_Merged_all/KPI_MGD_{game_id}.csv")
+        pred_expected_threat = predict_xT(expected_threat = expected_threat, event_data = eventcsv)
+        eventcsv = eventcsv.merge(pred_expected_threat, how = 'left', on = 'EVENT_ID')
         xmlEvent = load_xml.load_event(f"{path_data}/Bundesliga/raw_data/event_data_all/{game_id}.xml")
         xmlEvent = xmlEvent[['EventId', 'xG']].rename(columns = {'xG':"xml_xG"})
         
@@ -515,18 +538,30 @@ def getBuliLabels(games, output_dir, framesFrom = 10, xgType = "xml"):
             action_id = row['EVENT_ID']
             if (game_id, action_id) not in indices:
                 continue
-            feats = getFeatsPlay(idx, row, kickoffFrames, eventcsv, xgType = xgType, nextActs = framesFrom)
+            feats = getFeatsPlay(
+                idx=idx,
+                row=row,
+                kickoffFrames=kickoffFrames,
+                eventcsv=eventcsv,
+                xgType=xgType,
+                nextActs=framesFrom
+            )
             feats['success'] = row['EVALUATION'] in ['successfullyComplete', 'successful']
             success.at[(game_id, action_id), "success"] = feats['success']
             scores.at[(game_id, action_id), "scores"] = feats['scores']
             concedes.at[(game_id, action_id), "concedes"] = feats['concedes']
             scores_xg.at[(game_id, action_id), "scores_xg"] = feats['scores_xg']
             concedes_xg.at[(game_id, action_id), "concedes_xg"] = feats['concedes_xg']
+            scores_xt.at[(game_id, action_id), "scores_xt"] = feats['scores_xt']
+            concedes_xt.at[(game_id, action_id), "concedes_xt"] = feats['concedes_xt']
+    import pdb; pdb.set_trace()
     success.to_parquet(f"{output_dir}/y_success.parquet")
     scores.to_parquet(f"{output_dir}/y_scores.parquet")
     concedes.to_parquet(f"{output_dir}/y_concedes.parquet")
     scores_xg.to_parquet(f"{output_dir}/y_scores_xg.parquet")
     concedes_xg.to_parquet(f"{output_dir}/y_concedes_xg.parquet")
+    scores_xt.to_parquet(f"{output_dir}/y_scores_xt.parquet")
+    concedes_xt.to_parquet(f"{output_dir}/y_concedes_xt.parquet")
 def getNextNFrames(df, start_idx, closest_end, nextActs = 10):
     """
     Gets the next nextActs actions
@@ -537,28 +572,41 @@ def getNextNFrames(df, start_idx, closest_end, nextActs = 10):
     # Filter all rows in df with those 10 FRAME_NUMBERs
     nextEvents = df[df['FRAME_NUMBER'].isin(next_frames)]
     return nextEvents[nextEvents['FRAME_NUMBER'] < closest_end]
-def getFeatsPlay(idx, row, kickoffFrames,eventcsv, xgType = "csv", nextActs = 10):
+def getFeatsPlay(idx, row, kickoffFrames, eventcsv, xgType = "csv", nextActs = 10):
     """
     Generates labels for Bundesliga data for each play
     """
     shots = ['ShotWoodWork','OtherShot', 'BlockedShot', 'SavedShot', 'SuccessfulShot', 'ShotWide']
     frame = row['FRAME_NUMBER']
-    featuresOutput = {"scores": False, "concedes": False, "scores_xg":0, "concedes_xg":0}
+    featuresOutput = {"scores": False, "concedes": False, "scores_xg": 0, "concedes_xg": 0}
     greater_values = [kickoffFrame for kickoffFrame in kickoffFrames if kickoffFrame > frame]
     closest_end = min(greater_values) if len(greater_values) > 0 else None#get smallest kickoffFrame larger
     team = row['CUID1']
-    nextFrames = getNextNFrames(eventcsv, idx, closest_end, nextActs = nextActs)
+    nextFrames = getNextNFrames(
+        df=eventcsv,
+        start_idx=idx,
+        closest_end=closest_end,
+        nextActs=nextActs
+    )
     shots = nextFrames[~pd.isna(nextFrames['xG'])].copy()
+    featuresOutput['scores_xt'] = pd.concat(  # concatenate zero in case series is empty
+        [pd.Series([0]), nextFrames[nextFrames['CUID1'] == team]['xT']]
+    ).max()
+    featuresOutput['concedes_xt'] = pd.concat(  # concatenate zero in case series is empty
+        [pd.Series([0]), nextFrames[nextFrames['CUID1'] != team]['xT']]
+    ).max()
     if len(shots) == 0:
         return featuresOutput
     xgCol = "xG" if xgType == "csv" else "xml_xG"
     shots['xG'] = shots['xG'].str.replace(",", ".").astype(float)
     shots['xml_xG'] = shots['xml_xG'].astype(float)
     offensiveShots = shots[shots['CUID1'] == team]
-    featuresOutput["scores_xg"] = 1 - np.prod(1 - offensiveShots[xgCol])
+    featuresOutput['scores_xg'] = 1 - np.prod(1 - offensiveShots[xgCol])
+    featuresOutput['scores_xt'] = max(featuresOutput['scores_xt'], featuresOutput['scores_xg'])
     featuresOutput['scores'] = 'SuccessfulShot' in offensiveShots['SUBTYPE'].values
     defensiveShots = shots[shots['CUID1'] != team]
-    featuresOutput["concedes_xg"] = 1 - np.prod(1 - defensiveShots[xgCol])
+    featuresOutput['concedes_xg'] = 1 - np.prod(1 - defensiveShots[xgCol])
+    featuresOutput['concedes_xt'] = max(featuresOutput['concedes_xt'], featuresOutput['concedes_xg'])
     featuresOutput['concedes'] = 'SuccessfulShot' in defensiveShots['SUBTYPE'].values
     return featuresOutput
 def main(ball, checkBlocked):
@@ -578,5 +626,12 @@ def main(ball, checkBlocked):
     #   buli_speed = addAllSpeedBuli(games, ball, checkBlocked = checkBlocked)
     # buli_speed.to_parquet(f"{feat_path}/x_freeze_frame_360.parquet")
     # print("Getting Bundesliga Labels")
-    getBuliLabels(games, feat_path, xgType = "xml")
+
+    event_season = pd.DataFrame()
+    for game_id in tqdm(games):
+        event_game = load_xml.load_csv_event(f"{path_data}/Bundesliga/raw_data/KPI_Merged_all/KPI_MGD_{game_id}.csv")
+        event_season = pd.concat([event_season, event_game], axis=0)
+    expected_threat = train_xT(event_season)
+
+    getBuliLabels(games=games, output_dir=feat_path, expected_threat=expected_threat, xgType="xml")
 if __name__ == "__main__": main(True, True)
