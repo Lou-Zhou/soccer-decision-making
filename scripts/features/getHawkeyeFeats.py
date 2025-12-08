@@ -10,11 +10,14 @@ from tqdm import tqdm
 from unxpass.databases import SQLiteDatabase
 import traceback
 from collections import defaultdict
+
+from sdm import path_data, path_repo
+
 def getGksTM(game_id, teams = False):
     """
     Gets Goalkeepers and Team mapping for a game
     """
-    lineups = f"../../../../rdf/sp161/shared/soccer-decision-making/WomensEuro/womens_euro_receipts/lineups/{game_id}.json"
+    lineups = f"{path_data}/WomensEuro/womens_euro_receipts/lineups/{game_id}.json"
     lineup_df = pd.read_json(lineups, convert_dates = False)
     team_1 = lineup_df['team_id'].loc[0]
     team_2 = lineup_df['team_id'].loc[1]
@@ -225,10 +228,10 @@ def generate_Hawkeye_From_Features(output_dir, frame_forward = 5, frame_back = 5
     """
     Generates features independent of converted statsbomb data, completely from hawkeye data and sequences
     """
-    uefa_map = pd.read_csv("../../../../rdf/sp161/shared/soccer-decision-making/steffen/player_ids_matched.csv")
+    uefa_map = pd.read_csv(os.path.join(path_data, "steffen/player_ids_matched.csv"))
     uefa_map = pd.Series(uefa_map["sb_player_id"].values,index=uefa_map["uefa_player_id"]).to_dict()
     
-    with open("../../../../rdf/sp161/shared/soccer-decision-making/hawkeye_to_sb.json", 'r') as file:
+    with open(os.path.join(path_data, "hawkeye_to_sb.json"), 'r') as file:
         hawkeye_to_sb = json.load(file)
     sb_to_hawkeye = dict((v,k) for k,v in hawkeye_to_sb.items())
     minute_adjustment = {
@@ -237,7 +240,7 @@ def generate_Hawkeye_From_Features(output_dir, frame_forward = 5, frame_back = 5
     3: 90 * 60,
     4: 105 * 60
     }
-    sequences = pd.read_csv("../../../../rdf/sp161/shared/soccer-decision-making/steffen/sequence_filtered.csv", delimiter = ";")
+    sequences = pd.read_csv(os.path.join(path_data, "steffen/sequence_filtered.csv"), delimiter = ";")
     sequences = sequences.rename(columns = {"Half":"period"})
     sequences["hawkeye_game_id"] = sequences["match_id"].map(sb_to_hawkeye)
     sequences["BallReceipt"] = sequences["period"].map(minute_adjustment) + sequences["BallReceipt"]
@@ -294,9 +297,9 @@ def hawkeyeFeaturesGame(game, sequences, hawkeye_to_sb, uefa_map, frame_idxs, fr
         ball_starts = pd.DataFrame(index = multiindex)
         ball_speeds = pd.DataFrame(index = multiindex)
         ball_end = pd.DataFrame(index = multiindex)
-        ball_tracking_path = f"../../../../rdf/sp161/shared/soccer-decision-making/Hawkeye/raw_data/tracking_ball_csvs/{game}.csv"
+        ball_tracking_path = f"{path_data}/Hawkeye/raw_data/tracking_ball_csvs/{game}.csv"
         ball_df = pd.read_csv(ball_tracking_path)
-    tracking_path = f"../../../../rdf/sp161/shared/soccer-decision-making/Hawkeye/raw_data/tracking_csvs/{game}.csv"
+    tracking_path = f"{path_data}/Hawkeye/raw_data/tracking_csvs/{game}.csv"
     statsbombid = hawkeye_to_sb[game]
     team_dict, gkslist, teams = getGksTM(statsbombid, True)
     trackingdf = pd.read_csv(tracking_path)
@@ -348,24 +351,32 @@ def getDummyLabels(output_dir, dummy_idxs):
     Generates dummy labels for hawkeye data
     """
     concedes_xg = f"{output_dir}/y_concedes_xg.parquet"
+    concedes_xt = f"{output_dir}/y_concedes_xt.parquet"
     concedes = f"{output_dir}/y_concedes.parquet"
     scores_xg = f"{output_dir}/y_scores_xg.parquet"
+    scores_xt = f"{output_dir}/y_scores_xt.parquet"
     scores = f"{output_dir}/y_scores.parquet"
     success = f"{output_dir}/y_success.parquet"
     c_xg = pd.DataFrame(index = dummy_idxs)
+    c_xt = pd.DataFrame(index = dummy_idxs)
     c = pd.DataFrame(index = dummy_idxs)
     s_xg = pd.DataFrame(index = dummy_idxs)
+    s_xt = pd.DataFrame(index = dummy_idxs)
     s = pd.DataFrame(index = dummy_idxs)
     suc = pd.DataFrame(index = dummy_idxs)
     for idx in dummy_idxs:
         c_xg.at[idx, "concedes_xg"] = 0
+        c_xt.at[idx, "concedes_xg"] = 0
         c.at[idx, "concedes"] = False
         s_xg.at[idx, "scores_xg"] = 0
+        s_xt.at[idx, "scores_xt"] = 0
         s.at[idx, "scores"] = False
         suc.at[idx, "success"] = True
     c_xg.to_parquet(concedes_xg)
+    c_xt.to_parquet(concedes_xt)
     c.to_parquet(concedes)
     s_xg.to_parquet(scores_xg)
+    s_xt.to_parquet(scores_xt)
     s.to_parquet(scores)
     suc.to_parquet(success)
 def main(ball, frame_idxs = [0]):
@@ -374,7 +385,7 @@ def main(ball, frame_idxs = [0]):
     frame idxs determines what period around the reception to generate features 
     for(e.g. range(-250, 1) describes the 10 seconds before), [0] gives only the moment of reception
     """
-    output_dir = "../../../../rdf/sp161/shared/soccer-decision-making/Hawkeye/Hawkeye_Features/sequences_test"
+    output_dir = os.path.join(path_data, "Hawkeye/Hawkeye_Features/sequences")
     generate_Hawkeye_From_Features(output_dir, ball = ball, frame_idxs = frame_idxs)
     dummy_idxs = pd.read_parquet(f"{output_dir}/x_startlocation.parquet").index
     getDummyLabels(output_dir, dummy_idxs)
