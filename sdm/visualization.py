@@ -11,9 +11,7 @@ import mplsoccer
 from unxpass.datasets import PassesDataset
 from unxpass.components.withSpeeds import pass_selection_speeds, pass_success_speeds, pass_value_speeds
 
-from . import path_data
-from . import animation
-from . import results
+from . import animation, path_data, results
 
 warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
 pd.options.mode.chained_assignment = None
@@ -213,10 +211,10 @@ def plot_model_outputs(component: str,
     surfaces_wSpeed = model.predict_surface(dataset_test, db=None, game_id=game_id)
 
     # Load freeze frame data
-    freeze_frame = pd.read_parquet(features_dir / 'x_freeze_frame_360.parquet')
-    speed = pd.read_parquet(features_dir / 'x_speed.parquet')
-    start = pd.read_parquet(features_dir / 'x_startlocation.parquet')
-    end = pd.read_parquet(features_dir / 'x_endlocation.parquet')
+    freeze_frame = pd.read_parquet(os.path.join(features_dir, 'x_freeze_frame_360.parquet'))
+    speed = pd.read_parquet(os.path.join(features_dir, 'x_speed.parquet'))
+    start = pd.read_parquet(os.path.join(features_dir, 'x_startlocation.parquet'))
+    end = pd.read_parquet(os.path.join(features_dir, 'x_endlocation.parquet'))
 
     surface_type = {"interpolation": "bilinear", "vmin": None, "vmax": None, "cmap": "Greens"}
 
