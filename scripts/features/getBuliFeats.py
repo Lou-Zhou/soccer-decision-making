@@ -391,12 +391,20 @@ def sanitize_event_data(event_data, grid_x=16, grid_y=12):
         [~event_data.X_EVENT.isna()]
         .assign(
             team = lambda x: x.Club1_Three_Letter_Code,
-            x = lambda x: x.X_EVENT.str.replace(',', '.').astype(float),
-            y = lambda x: x.Y_EVENT.str.replace(',', '.').astype(float),
-            x_std = lambda x: (np.where(x.Goingright, 1, -1) * x.x + 52.5) / 105,
-            y_std = lambda x: (np.where(x.Goingright, 1, -1) * x.y + 38.0) / 68,
-            x_grid = lambda x: np.floor(x.x_std * grid_x).astype(int).astype(str),
-            y_grid = lambda x: np.floor(x.y_std * grid_y).astype(int).astype(str),
+            Goingright_ffill = lambda x: x.groupby(['MUID', 'team'])['Goingright'].ffill(),
+            going_right = lambda x: x.groupby(['MUID', 'team'])['Goingright_ffill'].bfill(),
+            x_start = lambda x: x.X_EVENT.str.replace(',', '.').astype(float),
+            y_start = lambda x: x.Y_EVENT.str.replace(',', '.').astype(float),
+            x_start_std = lambda x: (np.where(x.going_right, 1, -1) * x.x_start + 52.5) / 105,
+            y_start_std = lambda x: (np.where(x.going_right, 1, -1) * x.y_start + 38.0) / 68,
+            x_start_grid = lambda x: np.floor(x.x_start_std * grid_x).astype(int).astype(str),
+            y_start_grid = lambda x: np.floor(x.y_start_std * grid_y).astype(int).astype(str),
+            x_end = lambda x: x.XRec.str.replace(',', '.').astype(float),
+            y_end = lambda x: x.YRec.str.replace(',', '.').astype(float),
+            x_end_std = lambda x: (np.where(x.going_right, 1, -1) * x.x_end + 52.5) / 105,
+            y_end_std = lambda x: (np.where(x.going_right, 1, -1) * x.y_end + 38.0) / 68,
+            x_end_grid = lambda x: np.floor(x.x_end_std * grid_x).astype('Int64').astype(str),
+            y_end_grid = lambda x: np.floor(x.y_end_std * grid_y).astype('Int64').astype(str),
             x_goals = lambda x: np.where(
                 x.SUBTYPE == 'OwnGoal',
                 1,
@@ -410,23 +418,29 @@ def sanitize_event_data(event_data, grid_x=16, grid_y=12):
 def train_xT(event_data, delta_threshold=1e-10):
     location_data = (sanitize_event_data(event_data)
         .reset_index()
-        .query("Goingright.notna() or xG.notna()")
+        .query("SUBTYPE.isin(['Pass', 'Cross']) or xG.notna()")
         .assign(
-            state_pre = lambda x: np.where(
-                ~np.isnan(x['x_goals']),
-                ('shot' + (round(x['x_goals'] / 0.05) * 0.05).astype(str)).str[:8],
-                x['x_grid'].astype(str) + "_" + x['y_grid'].astype(str)
+            state_pre = lambda x: x['x_start_grid'].astype(str) + "_" + x['y_start_grid'].astype(str),
+            state_post = lambda x: np.select(
+                [
+                    ~np.isnan(x['x_goals']),
+                    (x['team'] != x['team'].shift(-1)) & (x['SUBTYPE'].shift(-1) != 'OwnGoal'),
+                    x['x_end_grid'] != '<NA>',
+                    (x['team'] == x['team'].shift(-1)) | (x['SUBTYPE'].shift(-1) == 'OwnGoal'),
+                ],
+                [
+                    ('shot' + (round(x['x_goals'] / 0.05) * 0.05).astype(str)).str[:8],
+                    'end',
+                    x['x_end_grid'].astype(str) + "_" + x['y_end_grid'].astype(str),
+                    x['state_pre'].shift(-1)
+                ],
+                default='end'
             ),
-            state_post = lambda x: np.where(
-                (x['team'] == x['team'].shift(-1)) | (x['SUBTYPE'].shift(-1) == 'OwnGoal'),
-                x['state_pre'].shift(-1),
-                'end'
-            )
         )
-        .loc[:, ['EVENT_ID', 'team', 'SUBTYPE', 'x_goals', 'state_pre', 'state_post']]
+        .loc[:, ['EVENT_ID', 'team', 'SUBTYPE', 'EVALUATION', 'x_goals', 'state_pre', 'state_post']]
         .reset_index()
     )
-    state = (location_data
+    state_nonterminal = (location_data
         .groupby('state_pre')
         .size()
         .reset_index()
@@ -437,7 +451,22 @@ def train_xT(event_data, delta_threshold=1e-10):
         )
         .loc[:, ['state', 'count', 'value']]
     )
-    transition = (location_data
+    state_terminal = (location_data
+        .groupby('state_post')
+        .size()
+        .reset_index()
+        .assign(
+            state = lambda x: x['state_post'],
+            state_substring = lambda x: x['state'].str[0:4],
+            count = 0,
+            value = 0,
+        )
+        .query("state_substring == 'end' | state_substring == 'shot'")
+        .reset_index()
+        .loc[:, ['state', 'count', 'value']]
+    )
+    state = pd.concat([state_nonterminal, state_terminal])
+    transition_nonterminal = (location_data
         .assign(state_pre_substr = lambda x: x.state_pre.str[:4])
         .query('(state_pre_substr != "shot") or (state_post == "end")') # force shot to end transition
         .groupby(['state_pre', 'state_post'])
@@ -454,6 +483,16 @@ def train_xT(event_data, delta_threshold=1e-10):
         )
         .loc[:, ['state_pre', 'state_post', 'prob', 'reward']]
     )
+    transition_terminal = (state_terminal
+        .assign(
+            state_pre = lambda x: x['state'],
+            state_post = 'end',
+            prob = 1,
+            reward = 0
+        )
+        .loc[:, ['state_pre', 'state_post', 'prob', 'reward']]
+    )
+    transition = pd.concat([transition_nonterminal, transition_terminal])
     delta_max = 1
     while delta_max > delta_threshold:
         state_new = (transition
@@ -478,16 +517,39 @@ def train_xT(event_data, delta_threshold=1e-10):
 
 def predict_xT(expected_threat, event_data):
     pred = (sanitize_event_data(event_data)
+        .query("SUBTYPE.isin(['Pass', 'Cross']) or xG.notna()")
         .assign(
-            state = lambda x: np.where(
-                ~np.isnan(x['x_goals']),
-                ('shot' + (round(x['x_goals'] / 0.05) * 0.05).astype(str)).str[:8],
-                x['x_grid'].astype(str) + "_" + x['y_grid'].astype(str)
+            state_pre = lambda x: x['x_start_grid'].astype(str) + "_" + x['y_start_grid'].astype(str),
+            state_post = lambda x: np.select(
+                [
+                    ~np.isnan(x['x_goals']),
+                    (x['team'] != x['team'].shift(-1)) & (x['SUBTYPE'].shift(-1) != 'OwnGoal'),
+                    x['x_end_grid'] != '<NA>',
+                    (x['team'] == x['team'].shift(-1)) | (x['SUBTYPE'].shift(-1) == 'OwnGoal'),
+                ],
+                [
+                    ('shot' + (round(x['x_goals'] / 0.05) * 0.05).astype(str)).str[:8],
+                    'end',
+                    x['x_end_grid'].astype(str) + "_" + x['y_end_grid'].astype(str),
+                    x['state_pre'].shift(-1)
+                ],
+                default='end'
             ),
         )
-        .merge(expected_threat, how = 'left', on = 'state')
-        .assign(xT = lambda x: x.value)
-        .loc[:, ['EVENT_ID', 'xT']]
+        .merge(expected_threat, how='left', left_on='state_pre', right_on='state')
+        .rename(columns={'value': 'xT_pre'})
+        .merge(expected_threat, how='left', left_on='state_post', right_on='state')
+        .rename(columns={'value': 'xT_post'})
+        # assign 0 xT to passes that are not successfullyComplete
+        # successful means something different from successfullyComplete
+        .assign(
+            xT_post = lambda x: np.where(
+                x['EVALUATION'].isin(['successful', 'unsuccessful']),
+                0,
+                x['xT_post']
+            )
+        )
+        .loc[:, ['EVENT_ID', 'xT_pre', 'xT_post']]
     )
     return(pred)
 
@@ -554,7 +616,6 @@ def getBuliLabels(games, output_dir, expected_threat, framesFrom = 10, xgType = 
             concedes_xg.at[(game_id, action_id), "concedes_xg"] = feats['concedes_xg']
             scores_xt.at[(game_id, action_id), "scores_xt"] = feats['scores_xt']
             concedes_xt.at[(game_id, action_id), "concedes_xt"] = feats['concedes_xt']
-    import pdb; pdb.set_trace()
     success.to_parquet(f"{output_dir}/y_success.parquet")
     scores.to_parquet(f"{output_dir}/y_scores.parquet")
     concedes.to_parquet(f"{output_dir}/y_concedes.parquet")
@@ -567,9 +628,10 @@ def getNextNFrames(df, start_idx, closest_end, nextActs = 10):
     Gets the next nextActs actions
     """
     start_frame = df.loc[start_idx, 'FRAME_NUMBER']
-    df_after = df.loc[start_idx + 1:]
-    next_frames = df_after[df_after['FRAME_NUMBER'] != start_frame]['FRAME_NUMBER'].drop_duplicates().head(nextActs)
-    # Filter all rows in df with those 10 FRAME_NUMBERs
+    # include the current frame and only consider passes, crosses and shots
+    df_after = df.loc[start_idx:].query("SUBTYPE.isin(['Pass', 'Cross']) or xG.notna()")
+    next_frames = df_after['FRAME_NUMBER'].drop_duplicates().head(nextActs)
+    # Filter all rows in df with those `nextActs` FRAME_NUMBERs
     nextEvents = df[df['FRAME_NUMBER'].isin(next_frames)]
     return nextEvents[nextEvents['FRAME_NUMBER'] < closest_end]
 def getFeatsPlay(idx, row, kickoffFrames, eventcsv, xgType = "csv", nextActs = 10):
@@ -590,10 +652,18 @@ def getFeatsPlay(idx, row, kickoffFrames, eventcsv, xgType = "csv", nextActs = 1
     )
     shots = nextFrames[~pd.isna(nextFrames['xG'])].copy()
     featuresOutput['scores_xt'] = pd.concat(  # concatenate zero in case series is empty
-        [pd.Series([0]), nextFrames[nextFrames['CUID1'] == team]['xT']]
+        [
+            pd.Series([0]),
+            nextFrames[nextFrames['CUID1'] == team]['xT_pre'][1:],  # exclude first play pre-xT
+            nextFrames[nextFrames['CUID1'] == team]['xT_post']
+        ]
     ).max()
     featuresOutput['concedes_xt'] = pd.concat(  # concatenate zero in case series is empty
-        [pd.Series([0]), nextFrames[nextFrames['CUID1'] != team]['xT']]
+        [
+            pd.Series([0]),
+            nextFrames[nextFrames['CUID1'] != team]['xT_pre'][1:],  # exclude first play pre-xT
+            nextFrames[nextFrames['CUID1'] != team]['xT_post']
+        ]
     ).max()
     if len(shots) == 0:
         return featuresOutput
@@ -615,7 +685,7 @@ def main(ball, checkBlocked):
     # #print("Getting Bundesliga Features")
     games = [game_id.split(".")[0] for game_id in os.listdir(f"{path_data}/Bundesliga/raw_data/tracking_csv")]
     # #games = games[:1]
-    feat_path = f"{path_data}/Bundesliga/features/features_4sec"
+    feat_path = f"{path_data}/Bundesliga/features/features_success"
     # if ball:
     #   dfs = addAllSpeedBuli(games, ball, checkBlocked = checkBlocked)
     #   buli_speed = dfs[0]
@@ -633,5 +703,62 @@ def main(ball, checkBlocked):
         event_season = pd.concat([event_season, event_game], axis=0)
     expected_threat = train_xT(event_season)
 
-    getBuliLabels(games=games, output_dir=feat_path, expected_threat=expected_threat, xgType="xml")
+    getBuliLabels(games=games, output_dir=feat_path, expected_threat=expected_threat, xgType="xml", framesFrom=5)
+    import pdb; pdb.set_trace()
 if __name__ == "__main__": main(True, True)
+#
+#
+#
+#games = [game_id.split(".")[0] for game_id in os.listdir(f"{path_data}/Bundesliga/raw_data/tracking_csv")]
+#
+#event_season = pd.DataFrame()
+#for game_id in tqdm(games):
+#    event_game = load_xml.load_csv_event(f"{path_data}/Bundesliga/raw_data/KPI_Merged_all/KPI_MGD_{game_id}.csv")
+#    event_season = pd.concat([event_season, event_game], axis=0)
+#
+#expected_threat = train_xT(event_season)
+#xt = predict_xT(expected_threat, event_season)
+#
+#
+#xml_season = pd.DataFrame()
+#for game_id in tqdm(games):
+#    xml_game = (load_xml
+#        .load_event(f"{path_data}/Bundesliga/raw_data/event_data_all/{game_id}.xml")
+#        .loc[:, ['MatchId', 'EventId', 'xG']]
+#    )
+#    xml_season = pd.concat([xml_season, xml_game], axis=0)
+#
+#feat_path = f"{path_data}/Bundesliga/features/features_success"
+#scores_xt = pd.read_parquet(f"{feat_path}/y_scores_xt.parquet").reset_index()
+#concedes_xt = pd.read_parquet(f"{feat_path}/y_concedes_xt.parquet").reset_index()
+#xml_season['EventId'] = xml_season['EventId'].astype(int)
+#temp = (event_season
+#    .merge(xml_season,
+#        how = 'left',
+#        left_on=['MUID', 'EVENT_ID'],
+#        right_on=['MatchId', 'EventId'],
+#        suffixes=('_csv', '_xml')
+#    )
+#    .merge(xt, how = 'left', on = 'EVENT_ID')
+#    .merge(scores_xt,
+#      how='left',
+#      left_on=['MUID', 'EVENT_ID'],
+#      right_on=['game_id', 'action_id']
+#    )
+#    .merge(concedes_xt,
+#      how='left',
+#      left_on=['MUID', 'EVENT_ID'],
+#      right_on=['game_id', 'action_id']
+#    )
+#    .assign(
+#       x_goals = lambda x: np.where(
+#           x.SUBTYPE == 'OwnGoal',
+#           1,
+#           x.xG_csv.str.replace(',', '.').astype(float)
+#       )
+#    )
+#    .loc[:, ['EVENT_ID', 'MUID', 'Club1_Three_Letter_Code', 'Goingright', 'X_EVENT', 'Y_EVENT', 'SUBTYPE', 'EVALUATION', 'xG_xml', 'xT_pre', 'xT_post', 'scores_xt', 'concedes_xt']]
+#)
+#
+#temp.to_csv('xt.csv')
+#
