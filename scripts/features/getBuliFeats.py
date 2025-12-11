@@ -704,7 +704,6 @@ def main(ball, checkBlocked):
     expected_threat = train_xT(event_season)
 
     getBuliLabels(games=games, output_dir=feat_path, expected_threat=expected_threat, xgType="xml", framesFrom=5)
-    import pdb; pdb.set_trace()
 if __name__ == "__main__": main(True, True)
 #
 #
