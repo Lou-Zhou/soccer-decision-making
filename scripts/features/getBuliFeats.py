@@ -668,6 +668,8 @@ def getFeatsPlay(idx, row, kickoffFrames, eventcsv, xgType = "csv", nextActs = 1
             nextFrames[nextFrames['CUID1'] != team]['xT_post']
         ]
     ).max()
+    # This response is just used to test whether the neural network can pick up end location
+    featuresOutput['scores_xloc'] = nextFrames['x_end_std'].iloc[0]
     if len(shots) == 0:
         return featuresOutput
     xgCol = "xG" if xgType == "csv" else "xml_xG"
@@ -676,8 +678,6 @@ def getFeatsPlay(idx, row, kickoffFrames, eventcsv, xgType = "csv", nextActs = 1
     offensiveShots = shots[shots['CUID1'] == team]
     featuresOutput['scores_xg'] = 1 - np.prod(1 - offensiveShots[xgCol])
     featuresOutput['scores_xt'] = max(featuresOutput['scores_xt'], featuresOutput['scores_xg'])
-    # This response is just used to test whether the neural network can pick up end location
-    featuresOutput['scores_xloc'] = nextFrames['x_end_std'].iloc[0]
     featuresOutput['scores'] = 'SuccessfulShot' in offensiveShots['SUBTYPE'].values
     defensiveShots = shots[shots['CUID1'] != team]
     featuresOutput['concedes_xg'] = 1 - np.prod(1 - defensiveShots[xgCol])
