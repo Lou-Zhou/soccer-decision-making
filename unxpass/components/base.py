@@ -238,6 +238,8 @@ class UnxPassPytorchComponent(UnxpassComponent):
         # Load data
         data = self.initialize_dataset(dataset)
         nb_train = int(len(data) * 0.8)
+        if train_cfg['training_sample_limit'] != 'inf':
+            nb_train = np.min([nb_train, train_cfg['training_sample_limit']])
         lengths = [nb_train, len(data) - nb_train]
         _data_train, _data_val = random_split(data, lengths)
         train_dataloader = DataLoader(
