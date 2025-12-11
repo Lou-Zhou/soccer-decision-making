@@ -271,9 +271,10 @@ class ToSoccerMapTensor:
 class SoccerMapComponent(PassValueComponent, UnxPassPytorchComponent):
     """A SoccerMap deep-learning model."""
 
-    def __init__(self, model: PytorchSoccerMapModel, offensive=True, success=True):
+    def __init__(self, model: PytorchSoccerMapModel, offensive=True, success=True, response="xg"):
         self.label = "scores" if offensive else "concedes"
         self.success = success
+        self.response = response
         super().__init__(
             model=model,
             features={
@@ -281,8 +282,8 @@ class SoccerMapComponent(PassValueComponent, UnxPassPytorchComponent):
                 "endlocation": ["end_x_a0", "end_y_a0"],
                 "freeze_frame_360": ["freeze_frame_360_a0"],
             },
-            label=[self.label, f"{self.label}_xg", "success"],
-            transform=ToSoccerMapTensor(dim=(68, 104), label=f"{self.label}_xg"),
+            label=[self.label, f"{self.label}_{self.response}", "success"],
+            transform=ToSoccerMapTensor(dim=(68, 104), label=f"{self.label}_{self.response}"),
         )
 
     def initialize_dataset(self, dataset: Callable) -> PassesDataset:
