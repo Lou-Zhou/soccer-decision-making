@@ -549,7 +549,7 @@ def predict_xT(expected_threat, event_data):
                 x['xT_post']
             )
         )
-        .loc[:, ['EVENT_ID', 'xT_pre', 'xT_post']]
+        .loc[:, ['EVENT_ID', 'x_end_std', 'xT_pre', 'xT_post']]
     )
     return(pred)
 
@@ -578,6 +578,7 @@ def getBuliLabels(games, output_dir, expected_threat, framesFrom = 10, xgType = 
     concedes_xg = pd.DataFrame(columns = ["concedes_xg"], index = index)
     scores_xt = pd.DataFrame(columns = ["scores_xt"], index = index)
     concedes_xt = pd.DataFrame(columns = ["concedes_xt"], index = index)
+    scores_xloc = pd.DataFrame(columns = ["scores_xloc"], index = index)
     nonActions = ['Offside', 'Substitution', 'Caution', 'FairPlay', 'Nutmeg', 'PossessionLossBeforeGoal', 'BallDeflection',
     'VideoAssistantAction']
     for game_id in tqdm(games):
@@ -616,6 +617,7 @@ def getBuliLabels(games, output_dir, expected_threat, framesFrom = 10, xgType = 
             concedes_xg.at[(game_id, action_id), "concedes_xg"] = feats['concedes_xg']
             scores_xt.at[(game_id, action_id), "scores_xt"] = feats['scores_xt']
             concedes_xt.at[(game_id, action_id), "concedes_xt"] = feats['concedes_xt']
+            scores_xloc.at[(game_id, action_id), "scores_xloc"] = feats['scores_xloc']
     success.to_parquet(f"{output_dir}/y_success.parquet")
     scores.to_parquet(f"{output_dir}/y_scores.parquet")
     concedes.to_parquet(f"{output_dir}/y_concedes.parquet")
@@ -623,6 +625,7 @@ def getBuliLabels(games, output_dir, expected_threat, framesFrom = 10, xgType = 
     concedes_xg.to_parquet(f"{output_dir}/y_concedes_xg.parquet")
     scores_xt.to_parquet(f"{output_dir}/y_scores_xt.parquet")
     concedes_xt.to_parquet(f"{output_dir}/y_concedes_xt.parquet")
+    scores_xloc.to_parquet(f"{output_dir}/y_scores_xloc.parquet")
 def getNextNFrames(df, start_idx, closest_end, nextActs = 10):
     """
     Gets the next nextActs actions
@@ -673,6 +676,8 @@ def getFeatsPlay(idx, row, kickoffFrames, eventcsv, xgType = "csv", nextActs = 1
     offensiveShots = shots[shots['CUID1'] == team]
     featuresOutput['scores_xg'] = 1 - np.prod(1 - offensiveShots[xgCol])
     featuresOutput['scores_xt'] = max(featuresOutput['scores_xt'], featuresOutput['scores_xg'])
+    # This response is just used to test whether the neural network can pick up end location
+    featuresOutput['scores_xloc'] = nextFrames['x_end_std'].iloc[0]
     featuresOutput['scores'] = 'SuccessfulShot' in offensiveShots['SUBTYPE'].values
     defensiveShots = shots[shots['CUID1'] != team]
     featuresOutput['concedes_xg'] = 1 - np.prod(1 - defensiveShots[xgCol])
