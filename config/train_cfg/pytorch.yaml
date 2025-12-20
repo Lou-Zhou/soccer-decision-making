@@ -2,6 +2,8 @@ batch_size: 32
 num_workers: 6
 pin_memory: False
 
+training_sample_limit: "inf"
+
 trainer:
   accelerator: "cpu"
   devices: 1

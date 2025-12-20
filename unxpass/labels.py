@@ -128,6 +128,21 @@ def concedes_xg(actions: pd.DataFrame, nr_actions: int = 10) -> pd.DataFrame:
     ].apply(lambda shots: reduce(lambda agg, xg: agg * (1 - xg), shots), axis=1)
     return y[["concedes_xg"]]
 
+def scores_xt(actions: pd.DataFrame, nr_actions: int = 10) -> pd.DataFrame:
+    """Our code base needs this function to be defined but doesn't actually use it.
+    """
+    return actions
+
+def concedes_xt(actions: pd.DataFrame, nr_actions: int = 10) -> pd.DataFrame:
+    """Our code base needs this function to be defined but doesn't actually use it.
+    """
+    return actions
+
+def scores_xloc(actions: pd.DataFrame, nr_actions: int = 10) -> pd.DataFrame:
+    """Our code base needs this function to be defined but doesn't actually use it.
+    """
+    return actions
+
 
 def receiver(actions: pd.DataFrame) -> pd.DataFrame:
     """Determine the player who received the ball.
