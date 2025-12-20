@@ -138,6 +138,11 @@ def concedes_xt(actions: pd.DataFrame, nr_actions: int = 10) -> pd.DataFrame:
     """
     return actions
 
+def scores_xloc(actions: pd.DataFrame, nr_actions: int = 10) -> pd.DataFrame:
+    """Our code base needs this function to be defined but doesn't actually use it.
+    """
+    return actions
+
 
 def receiver(actions: pd.DataFrame) -> pd.DataFrame:
     """Determine the player who received the ball.
