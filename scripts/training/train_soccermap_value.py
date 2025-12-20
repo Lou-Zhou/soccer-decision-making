@@ -22,7 +22,7 @@ from sdm import path_data, path_repo
 path_config = path_repo + "/config/"
 
 
-experiment = "pass_value/soccermap_defensive_failed"#experiment to be used, should be change depending on the model wanted
+experiment = "pass_value/soccermap_offensive_failed"#experiment to be used, should be change depending on the model wanted
 overrides = [f"experiment={experiment}"]
 cfg = __main__.parse_config(config_path = path_config, overrides = overrides)
 side = experiment.split("_")[2]
