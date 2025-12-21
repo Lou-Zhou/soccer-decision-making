@@ -165,15 +165,15 @@ def check_speeds(frame):
 def getIdxs(dir_path, output_path, idxs, include = False, random_subset = None):
     if not os.path.exists(output_path):
         os.makedirs(output_path)
-for file in tqdm(os.listdir(dir_path)):
-    if include:
-        parquet = pd.read_parquet(f"{dir_path}/{file}").loc[idxs]
-    else:
-        parquet = pd.read_parquet(f"{dir_path}/{file}")
-        parquet = parquet[~parquet.index.isin(idxs)]
-        if random_subset is not None:
-            parquet = parquet.sample(n = random_subset, random_state = 42)
-    parquet.to_parquet(f"{output_path}/{file}")
+    for file in tqdm(os.listdir(dir_path)):
+        if include:
+            parquet = pd.read_parquet(f"{dir_path}/{file}").loc[idxs]
+        else:
+            parquet = pd.read_parquet(f"{dir_path}/{file}")
+            parquet = parquet[~parquet.index.isin(idxs)]
+            if random_subset is not None:
+                parquet = parquet.sample(n = random_subset, random_state = 42)
+        parquet.to_parquet(f"{output_path}/{file}")
 def getDistanceThreshold(start_df, end_df, success, threshold):
     #get unsuccessful passes under certain threshold
     distances = np.sqrt(
