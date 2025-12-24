@@ -5,6 +5,7 @@ import numpy as np
 import math
 from tqdm import tqdm
 import numpy as np
+from sdm import path_data, path_repo
 
 def angle_between_vectors(P, A, B):
     """
@@ -213,7 +214,6 @@ def freezeBall(startLoc):
     startLoc = startLoc.groupby('og_action', group_keys=False).apply(lambda g: fillStartLocs(g, "start_x_a0"))
     startLoc = startLoc.groupby('og_action', group_keys=False).apply(lambda g: fillStartLocs(g, "start_y_a0"))
     return startLoc[["start_x_a0", "start_y_a0"]]
-from unxpass.Scripts.visualizationScripts import animatePlays
 def main():
     """
     For the Bundesliga Data, feature filtering is as follows:
@@ -235,8 +235,9 @@ def main():
     For Hawkeye Data, freezeBall to freeze the ball to time of reception as needed.
 
     """
-    input_dir = "../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/features/features_angle"
-    output_dir = "../../../../rdf/sp161/shared/soccer-decision-making/Bundesliga/features/features_failed"
+    # input_dir and output_dir must be modified manually (they are hard-coded)
+    input_dir = os.path.join(path_data, 'Bundesliga', 'features', 'features_success')
+    output_dir = os.path.join(path_data, 'Bundesliga', 'features', 'features_success')
     startloc = pd.read_parquet(f"{input_dir}/x_startlocation.parquet")
     endloc = pd.read_parquet(f"{input_dir}/x_endlocation.parquet")
     freezeframe = pd.read_parquet(f"{input_dir}/x_freeze_frame_360.parquet")
@@ -249,7 +250,7 @@ def main():
 
     # Getting only successful / failed passes:
     successIdx = getSuccessIdx(success)
-    getIdxs(input_dir, output_dir, idxs = successIdx, include = False)
+    getIdxs(input_dir, output_dir, idxs = successIdx, include = True)
     #allidxs = combineIdx(successIdx, allidxs)
 
 
