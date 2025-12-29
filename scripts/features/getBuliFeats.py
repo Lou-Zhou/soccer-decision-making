@@ -691,15 +691,15 @@ def main(ball, checkBlocked):
     games = [game_id.split(".")[0] for game_id in os.listdir(f"{path_data}/Bundesliga/raw_data/tracking_csv")]
     # #games = games[:1]
     feat_path = f"{path_data}/Bundesliga/features/features_success"
-    # if ball:
-    #   dfs = addAllSpeedBuli(games, ball, checkBlocked = checkBlocked)
-    #   buli_speed = dfs[0]
-    #   dfs[1].to_parquet(f"{feat_path}/x_speed.parquet")
-    #   dfs[2].to_parquet(f"{feat_path}/x_startlocation.parquet")
-    #   dfs[3].to_parquet(f"{feat_path}/x_endlocation.parquet")
-    # else:
-    #   buli_speed = addAllSpeedBuli(games, ball, checkBlocked = checkBlocked)
-    # buli_speed.to_parquet(f"{feat_path}/x_freeze_frame_360.parquet")
+    if ball:
+      dfs = addAllSpeedBuli(games, ball, checkBlocked = checkBlocked)
+      buli_speed = dfs[0]
+      dfs[1].to_parquet(f"{feat_path}/x_speed.parquet")
+      dfs[2].to_parquet(f"{feat_path}/x_startlocation.parquet")
+      dfs[3].to_parquet(f"{feat_path}/x_endlocation.parquet")
+    else:
+      buli_speed = addAllSpeedBuli(games, ball, checkBlocked = checkBlocked)
+    buli_speed.to_parquet(f"{feat_path}/x_freeze_frame_360.parquet")
     # print("Getting Bundesliga Labels")
 
     event_season = pd.DataFrame()

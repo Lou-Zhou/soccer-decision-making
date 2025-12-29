@@ -254,13 +254,13 @@ def main():
     #allidxs = combineIdx(successIdx, allidxs)
 
 
-    # #Bundesliga Feature Filtering 
-    # impossibleIdx = sanityCheck(startloc, endloc) #gets indices that are not physically possible(originating from data errors)
-    # outlieridx = getOutlierIdx(freezeframe) #outlier idx based on speed
-    # noChange = getNoChange(startloc, endloc) #sanity checker to ensure that there is a change in start and end locs
-    # allidxs = combineIdx(outlieridx, impossibleIdx)
-    # allidxs = combineIdx(allidxs, noChange)
-    # getIdxs(input_dir, output_dir, idxs = allidxs, include = False)
+    #Bundesliga Feature Filtering 
+    impossibleIdx = sanityCheck(startloc, endloc) #gets indices that are not physically possible(originating from data errors)
+    outlieridx = getOutlierIdx(freezeframe) #outlier idx based on speed
+    noChange = getNoChange(startloc, endloc) #sanity checker to ensure that there is a change in start and end locs
+    allidxs = combineIdx(outlieridx, impossibleIdx)
+    allidxs = combineIdx(allidxs, noChange)
+    getIdxs(input_dir, output_dir, idxs = allidxs, include = False)
 
 
     # # Mapping End Location
